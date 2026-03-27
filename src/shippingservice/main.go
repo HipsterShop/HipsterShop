@@ -8,22 +8,14 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
-	"net"
+	"net/http"
 	"os"
 	"time"
 
 	"cloud.google.com/go/profiler"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/net/context"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/health"
-	"google.golang.org/grpc/reflection"
-	"google.golang.org/grpc/status"
-
-	pb "github.com/GoogleCloudPlatform/microservices-demo/src/shippingservice/genproto"
-	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 )
 
 const (
@@ -46,11 +38,49 @@ func init() {
 	log.Out = os.Stdout
 }
 
+// JSON data types matching the proto contract
+
+type CartItem struct {
+	ProductId string `json:"productId"`
+	Quantity  int32  `json:"quantity"`
+}
+
+type Address struct {
+	StreetAddress string `json:"streetAddress"`
+	City          string `json:"city"`
+	State         string `json:"state"`
+	Country       string `json:"country"`
+	ZipCode       int32  `json:"zipCode"`
+}
+
+type Money struct {
+	CurrencyCode string `json:"currencyCode"`
+	Units        int64  `json:"units"`
+	Nanos        int32  `json:"nanos"`
+}
+
+type GetQuoteRequest struct {
+	Address *Address   `json:"address"`
+	Items   []CartItem `json:"items"`
+}
+
+type GetQuoteResponse struct {
+	CostUsd *Money `json:"costUsd"`
+}
+
+type ShipOrderRequest struct {
+	Address *Address   `json:"address"`
+	Items   []CartItem `json:"items"`
+}
+
+type ShipOrderResponse struct {
+	TrackingId string `json:"trackingId"`
+}
+
 func main() {
 	if os.Getenv("DISABLE_TRACING") == "" {
 		log.Info("Tracing enabled, but temporarily unavailable")
 		log.Info("See https://github.com/GoogleCloudPlatform/microservices-demo/issues/422 for more info.")
-		go initTracing()
 	} else {
 		log.Info("Tracing disabled.")
 	}
@@ -66,98 +96,87 @@ func main() {
 	if value, ok := os.LookupEnv("PORT"); ok {
 		port = value
 	}
-	port = fmt.Sprintf(":%s", port)
 
-	lis, err := net.Listen("tcp", port)
-	if err != nil {
-		log.Fatalf("failed to listen: %v", err)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/quote", handleGetQuote)
+	mux.HandleFunc("/shiporder", handleShipOrder)
+	mux.HandleFunc("/_healthz", handleHealthCheck)
+
+	addr := fmt.Sprintf(":%s", port)
+	log.Infof("Shipping Service listening on port %s", addr)
+	log.Fatal(http.ListenAndServe(addr, mux))
+}
+
+func handleGetQuote(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
 	}
-
-	var srv *grpc.Server
-	if os.Getenv("DISABLE_STATS") == "" {
-		log.Info("Stats enabled, but temporarily unavailable")
-		srv = grpc.NewServer()
-	} else {
-		log.Info("Stats disabled.")
-		srv = grpc.NewServer()
-	}
-	svc := &server{}
-	pb.RegisterShippingServiceServer(srv, svc)
-	healthcheck := health.NewServer()
-	healthpb.RegisterHealthServer(srv, healthcheck)
-	log.Infof("Shipping Service listening on port %s", port)
-
-	// Register reflection service on gRPC server.
-	reflection.Register(srv)
-	if err := srv.Serve(lis); err != nil {
-		log.Fatalf("failed to serve: %v", err)
-	}
-}
-
-// server controls RPC service responses.
-type server struct {
-	pb.UnimplementedShippingServiceServer
-}
-
-// Check is for health checking.
-func (s *server) Check(ctx context.Context, req *healthpb.HealthCheckRequest) (*healthpb.HealthCheckResponse, error) {
-	return &healthpb.HealthCheckResponse{Status: healthpb.HealthCheckResponse_SERVING}, nil
-}
-
-func (s *server) Watch(req *healthpb.HealthCheckRequest, ws healthpb.Health_WatchServer) error {
-	return status.Errorf(codes.Unimplemented, "health check via Watch not implemented")
-}
-
-// GetQuote produces a shipping quote (cost) in USD.
-func (s *server) GetQuote(ctx context.Context, in *pb.GetQuoteRequest) (*pb.GetQuoteResponse, error) {
 	log.Info("[GetQuote] received request")
 	defer log.Info("[GetQuote] completed request")
 
-	// 1. Generate a quote based on the total number of items to be shipped.
-	quote := CreateQuoteFromCount(0)
+	var req GetQuoteRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 
-	// 2. Generate a response.
-	return &pb.GetQuoteResponse{
-		CostUsd: &pb.Money{
+	// Generate a quote based on the total number of items to be shipped.
+	itemCount := uint32(0)
+	for _, item := range req.Items {
+		if item.Quantity > 0 {
+			itemCount += uint32(item.Quantity)
+		}
+	}
+	quote := CreateQuoteFromCount(itemCount)
+
+	resp := GetQuoteResponse{
+		CostUsd: &Money{
 			CurrencyCode: "USD",
 			Units:        int64(quote.Dollars),
-			Nanos:        int32(quote.Cents * 10000000)},
-	}, nil
+			Nanos:        int32(quote.Cents * 10000000),
+		},
+	}
 
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
 }
 
-// ShipOrder mocks that the requested items will be shipped.
-// It supplies a tracking ID for notional lookup of shipment delivery status.
-func (s *server) ShipOrder(ctx context.Context, in *pb.ShipOrderRequest) (*pb.ShipOrderResponse, error) {
+func handleShipOrder(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
 	log.Info("[ShipOrder] received request")
 	defer log.Info("[ShipOrder] completed request")
-	// 1. Create a Tracking ID
-	baseAddress := fmt.Sprintf("%s, %s, %s", in.Address.StreetAddress, in.Address.City, in.Address.State)
+
+	var req ShipOrderRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if req.Address == nil {
+		http.Error(w, "address is required", http.StatusBadRequest)
+		return
+	}
+
+	baseAddress := fmt.Sprintf("%s, %s, %s", req.Address.StreetAddress, req.Address.City, req.Address.State)
 	id := CreateTrackingId(baseAddress)
 
-	// 2. Generate a response.
-	return &pb.ShipOrderResponse{
-		TrackingId: id,
-	}, nil
+	resp := ShipOrderResponse{TrackingId: id}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
 }
 
-func initStats() {
-	//TODO(arbrown) Implement OpenTelemetry stats
-}
-
-func initTracing() {
-	// TODO(arbrown) Implement OpenTelemetry tracing
+func handleHealthCheck(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprint(w, "ok")
 }
 
 func initProfiling(service, version string) {
-	// TODO(ahmetb) this method is duplicated in other microservices using Go
-	// since they are not sharing packages.
 	for i := 1; i <= 3; i++ {
 		if err := profiler.Start(profiler.Config{
 			Service:        service,
 			ServiceVersion: version,
-			// ProjectID must be set if not running on GCP.
-			// ProjectID: "my-project",
 		}); err != nil {
 			log.Warnf("failed to start profiler: %+v", err)
 		} else {

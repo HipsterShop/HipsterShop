@@ -19,4 +19,4 @@ COPY --from=builder /usr/local/lib/python3.11/ /usr/local/lib/python3.11/
 COPY --from=builder /usr/local/bin/ /usr/local/bin/
 COPY . .
 EXPOSE 8080
-ENTRYPOINT [ "opentelemetry-instrument", "python", "email_server.py" ]
+ENTRYPOINT [ "python", "email_server.py" ]

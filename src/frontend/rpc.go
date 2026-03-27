@@ -8,11 +8,14 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
 	"time"
 
-	pb "github.com/GoogleCloudPlatform/microservices-demo/src/frontend/genproto"
-
+	"github.com/GoogleCloudPlatform/microservices-demo/src/frontend/money"
 	"github.com/pkg/errors"
 )
 
@@ -20,14 +23,50 @@ const (
 	avoidNoopCurrencyConversionRPC = false
 )
 
-func (fe *frontendServer) getCurrencies(ctx context.Context) ([]string, error) {
-	currs, err := pb.NewCurrencyServiceClient(fe.currencySvcConn).
-		GetSupportedCurrencies(ctx, &pb.Empty{})
+var httpClient = &http.Client{Timeout: 10 * time.Second}
+
+func postJSON(url string, body interface{}, result interface{}) error {
+	data, err := json.Marshal(body)
 	if err != nil {
+		return err
+	}
+	resp, err := httpClient.Post(url, "application/json", bytes.NewReader(data))
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		return fmt.Errorf("HTTP %d from %s", resp.StatusCode, url)
+	}
+	if result != nil {
+		return json.NewDecoder(resp.Body).Decode(result)
+	}
+	return nil
+}
+
+func getJSON(url string, result interface{}) error {
+	resp, err := httpClient.Get(url)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		return fmt.Errorf("HTTP %d from %s", resp.StatusCode, url)
+	}
+	return json.NewDecoder(resp.Body).Decode(result)
+}
+
+type getSupportedCurrenciesResponse struct {
+	CurrencyCodes []string `json:"currencyCodes"`
+}
+
+func (fe *frontendServer) getCurrencies(ctx context.Context) ([]string, error) {
+	var resp getSupportedCurrenciesResponse
+	if err := getJSON(fmt.Sprintf("http://%s/currencies", fe.currencySvcAddr), &resp); err != nil {
 		return nil, err
 	}
 	var out []string
-	for _, c := range currs.CurrencyCodes {
+	for _, c := range resp.CurrencyCodes {
 		if _, ok := whitelistedCurrencies[c]; ok {
 			out = append(out, c)
 		}
@@ -35,68 +74,103 @@ func (fe *frontendServer) getCurrencies(ctx context.Context) ([]string, error) {
 	return out, nil
 }
 
-func (fe *frontendServer) getProducts(ctx context.Context) ([]*pb.Product, error) {
-	resp, err := pb.NewProductCatalogServiceClient(fe.productCatalogSvcConn).
-		ListProducts(ctx, &pb.Empty{})
-	return resp.GetProducts(), err
+type listProductsResponse struct {
+	Products []*Product `json:"products"`
 }
 
-func (fe *frontendServer) getProduct(ctx context.Context, id string) (*pb.Product, error) {
-	resp, err := pb.NewProductCatalogServiceClient(fe.productCatalogSvcConn).
-		GetProduct(ctx, &pb.GetProductRequest{Id: id})
-	return resp, err
+func (fe *frontendServer) getProducts(ctx context.Context) ([]*Product, error) {
+	var resp listProductsResponse
+	if err := getJSON(fmt.Sprintf("http://%s/products", fe.productCatalogSvcAddr), &resp); err != nil {
+		return nil, err
+	}
+	return resp.Products, nil
 }
 
-func (fe *frontendServer) getCart(ctx context.Context, userID string) ([]*pb.CartItem, error) {
-	resp, err := pb.NewCartServiceClient(fe.cartSvcConn).GetCart(ctx, &pb.GetCartRequest{UserId: userID})
-	return resp.GetItems(), err
+func (fe *frontendServer) getProduct(ctx context.Context, id string) (*Product, error) {
+	var resp Product
+	if err := getJSON(fmt.Sprintf("http://%s/products/%s", fe.productCatalogSvcAddr, id), &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+type cartResponse struct {
+	UserId string      `json:"userId"`
+	Items  []*CartItem `json:"items"`
+}
+
+func (fe *frontendServer) getCart(ctx context.Context, userID string) ([]*CartItem, error) {
+	reqBody := map[string]string{"userId": userID}
+	var resp cartResponse
+	if err := postJSON(fmt.Sprintf("http://%s/cart/get", fe.cartSvcAddr), reqBody, &resp); err != nil {
+		return nil, err
+	}
+	return resp.Items, nil
 }
 
 func (fe *frontendServer) emptyCart(ctx context.Context, userID string) error {
-	_, err := pb.NewCartServiceClient(fe.cartSvcConn).EmptyCart(ctx, &pb.EmptyCartRequest{UserId: userID})
-	return err
+	reqBody := map[string]string{"userId": userID}
+	return postJSON(fmt.Sprintf("http://%s/cart/empty", fe.cartSvcAddr), reqBody, nil)
 }
 
 func (fe *frontendServer) insertCart(ctx context.Context, userID, productID string, quantity int32) error {
-	_, err := pb.NewCartServiceClient(fe.cartSvcConn).AddItem(ctx, &pb.AddItemRequest{
-		UserId: userID,
-		Item: &pb.CartItem{
-			ProductId: productID,
-			Quantity:  quantity},
-	})
-	return err
-}
-
-func (fe *frontendServer) convertCurrency(ctx context.Context, money *pb.Money, currency string) (*pb.Money, error) {
-	if avoidNoopCurrencyConversionRPC && money.GetCurrencyCode() == currency {
-		return money, nil
+	reqBody := map[string]interface{}{
+		"userId": userID,
+		"item": map[string]interface{}{
+			"productId": productID,
+			"quantity":  quantity,
+		},
 	}
-	return pb.NewCurrencyServiceClient(fe.currencySvcConn).
-		Convert(ctx, &pb.CurrencyConversionRequest{
-			From:   money,
-			ToCode: currency})
+	return postJSON(fmt.Sprintf("http://%s/cart/add", fe.cartSvcAddr), reqBody, nil)
 }
 
-func (fe *frontendServer) getShippingQuote(ctx context.Context, items []*pb.CartItem, currency string) (*pb.Money, error) {
-	quote, err := pb.NewShippingServiceClient(fe.shippingSvcConn).GetQuote(ctx,
-		&pb.GetQuoteRequest{
-			Address: nil,
-			Items:   items})
-	if err != nil {
+func (fe *frontendServer) convertCurrency(ctx context.Context, m *money.Money, currency string) (*money.Money, error) {
+	if avoidNoopCurrencyConversionRPC && m.CurrencyCode == currency {
+		return m, nil
+	}
+	reqBody := map[string]interface{}{
+		"from":   m,
+		"toCode": currency,
+	}
+	var result money.Money
+	if err := postJSON(fmt.Sprintf("http://%s/convert", fe.currencySvcAddr), reqBody, &result); err != nil {
 		return nil, err
 	}
-	localized, err := fe.convertCurrency(ctx, quote.GetCostUsd(), currency)
+	return &result, nil
+}
+
+type getQuoteResponseFE struct {
+	CostUsd *money.Money `json:"costUsd"`
+}
+
+func (fe *frontendServer) getShippingQuote(ctx context.Context, items []*CartItem, currency string) (*money.Money, error) {
+	reqBody := map[string]interface{}{
+		"address": nil,
+		"items":   items,
+	}
+	var resp getQuoteResponseFE
+	if err := postJSON(fmt.Sprintf("http://%s/quote", fe.shippingSvcAddr), reqBody, &resp); err != nil {
+		return nil, err
+	}
+	localized, err := fe.convertCurrency(ctx, resp.CostUsd, currency)
 	return localized, errors.Wrap(err, "failed to convert currency for shipping cost")
 }
 
-func (fe *frontendServer) getRecommendations(ctx context.Context, userID string, productIDs []string) ([]*pb.Product, error) {
-	resp, err := pb.NewRecommendationServiceClient(fe.recommendationSvcConn).ListRecommendations(ctx,
-		&pb.ListRecommendationsRequest{UserId: userID, ProductIds: productIDs})
-	if err != nil {
+type listRecommendationsResponse struct {
+	ProductIds []string `json:"productIds"`
+}
+
+func (fe *frontendServer) getRecommendations(ctx context.Context, userID string, productIDs []string) ([]*Product, error) {
+	reqBody := map[string]interface{}{
+		"userId":     userID,
+		"productIds": productIDs,
+	}
+	var resp listRecommendationsResponse
+	if err := postJSON(fmt.Sprintf("http://%s/recommendations", fe.recommendationSvcAddr), reqBody, &resp); err != nil {
 		return nil, err
 	}
-	out := make([]*pb.Product, len(resp.GetProductIds()))
-	for i, v := range resp.GetProductIds() {
+	out := make([]*Product, len(resp.ProductIds))
+	for i, v := range resp.ProductIds {
 		p, err := fe.getProduct(ctx, v)
 		if err != nil {
 			return nil, errors.Wrapf(err, "failed to get recommended product info (#%s)", v)
@@ -106,15 +180,20 @@ func (fe *frontendServer) getRecommendations(ctx context.Context, userID string,
 	if len(out) > 4 {
 		out = out[:4] // take only first four to fit the UI
 	}
-	return out, err
+	return out, nil
 }
 
-func (fe *frontendServer) getAd(ctx context.Context, ctxKeys []string) ([]*pb.Ad, error) {
-	ctx, cancel := context.WithTimeout(ctx, time.Millisecond*100)
-	defer cancel()
+type adResponse struct {
+	Ads []*Ad `json:"ads"`
+}
 
-	resp, err := pb.NewAdServiceClient(fe.adSvcConn).GetAds(ctx, &pb.AdRequest{
-		ContextKeys: ctxKeys,
-	})
-	return resp.GetAds(), errors.Wrap(err, "failed to get ads")
+func (fe *frontendServer) getAd(ctx context.Context, ctxKeys []string) ([]*Ad, error) {
+	reqBody := map[string]interface{}{
+		"context_keys": ctxKeys,
+	}
+	var resp adResponse
+	if err := postJSON(fmt.Sprintf("http://%s/ads", fe.adSvcAddr), reqBody, &resp); err != nil {
+		return nil, errors.Wrap(err, "failed to get ads")
+	}
+	return resp.Ads, nil
 }

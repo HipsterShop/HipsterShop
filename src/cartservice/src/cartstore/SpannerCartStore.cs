@@ -1,9 +1,9 @@
 
 using System;
 using Google.Cloud.Spanner.Data;
-using Grpc.Core;
 using Microsoft.Extensions.Configuration;
 using System.Threading.Tasks;
+using cartservice.models;
 
 namespace cartservice.cartstore
 {
@@ -83,16 +83,15 @@ namespace cartservice.cartstore
             }
             catch (Exception ex)
             {
-                throw new RpcException(
-                    new Status(StatusCode.FailedPrecondition, $"Can't access cart storage at {databaseString}. {ex}"));
+                throw new Exception($"Can't access cart storage at {databaseString}. {ex}");
             }
         }
 
 
-        public async Task<Hipstershop.Cart> GetCartAsync(string userId)
+        public async Task<Cart> GetCartAsync(string userId)
         {
             Console.WriteLine($"GetCartAsync called for userId={userId}");
-            Hipstershop.Cart cart = new();
+            Cart cart = new() { UserId = userId };
             try
             {
                 using SpannerConnection spannerConnection = new(databaseString);
@@ -106,9 +105,7 @@ namespace cartservice.cartstore
                 using var reader = await cmd.ExecuteReaderAsync();
                 while (await reader.ReadAsync())
                 {
-                    cart.UserId = userId;
-
-                    Hipstershop.CartItem item = new()
+                    CartItem item = new()
                     {
                         ProductId = reader.GetFieldValue<string>("productId"),
                         Quantity = reader.GetFieldValue<int>("quantity")
@@ -120,8 +117,7 @@ namespace cartservice.cartstore
             }
             catch (Exception ex)
             {
-                throw new RpcException(
-                    new Status(StatusCode.FailedPrecondition, $"Can't access cart storage at {databaseString}. {ex}"));
+                throw new Exception($"Can't access cart storage at {databaseString}. {ex}");
             }
         }
 
@@ -148,8 +144,7 @@ namespace cartservice.cartstore
 
             catch (Exception ex)
             {
-                throw new RpcException(
-                    new Status(StatusCode.FailedPrecondition, $"Can't access cart storage at {databaseString}. {ex}"));
+                throw new Exception($"Can't access cart storage at {databaseString}. {ex}");
             }
         }
 
@@ -166,4 +161,3 @@ namespace cartservice.cartstore
         }
     }
 }
-

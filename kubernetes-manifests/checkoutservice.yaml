@@ -13,29 +13,18 @@ spec:
       labels:
         app: checkoutservice
     spec:
-      serviceAccountName: checkoutservice
-      securityContext:
-        fsGroup: 1000
-        runAsGroup: 1000
-        runAsNonRoot: true
-        runAsUser: 1000
       containers:
         - name: server
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-                - ALL
-            privileged: false
-            readOnlyRootFilesystem: true
           image: cazzzzz/checkoutservice-hipster:latest
           ports:
           - containerPort: 5050
           readinessProbe:
-            grpc:
+            httpGet:
+              path: "/_healthz"
               port: 5050
           livenessProbe:
-            grpc:
+            httpGet:
+              path: "/_healthz"
               port: 5050
           env:
           - name: ENABLE_TRACING
@@ -51,7 +40,7 @@ spec:
           - name: PAYMENT_SERVICE_ADDR
             value: "paymentservice:50051"
           - name: EMAIL_SERVICE_ADDR
-            value: "emailservice:5000"
+            value: "emailservice:8080"
           - name: CURRENCY_SERVICE_ADDR
             value: "currencyservice:7000"
           - name: CART_SERVICE_ADDR
@@ -75,11 +64,6 @@ spec:
   selector:
     app: checkoutservice
   ports:
-  - name: grpc
+  - name: http
     port: 5050
     targetPort: 5050
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: checkoutservice

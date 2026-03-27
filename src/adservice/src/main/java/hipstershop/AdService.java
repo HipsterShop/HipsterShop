@@ -10,103 +10,132 @@
 package hipstershop;
 
 import com.google.common.collect.ImmutableListMultimap;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
-import hipstershop.Demo.Ad;
-import hipstershop.Demo.AdRequest;
-import hipstershop.Demo.AdResponse;
-import io.grpc.Server;
-import io.grpc.ServerBuilder;
-import io.grpc.StatusRuntimeException;
-import io.grpc.health.v1.HealthCheckResponse.ServingStatus;
-import io.grpc.services.*;
-import io.grpc.stub.StreamObserver;
+import com.sun.net.httpserver.HttpServer;
+import com.sun.net.httpserver.HttpExchange;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Random;
-import java.util.concurrent.TimeUnit;
-import org.apache.logging.log4j.Level;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public final class AdService {
 
   private static final Logger logger = LogManager.getLogger(AdService.class);
+  private static final ObjectMapper mapper = new ObjectMapper();
 
   @SuppressWarnings("FieldCanBeLocal")
   private static int MAX_ADS_TO_SERVE = 2;
 
-  private Server server;
-  private HealthStatusManager healthMgr;
+  private HttpServer server;
 
   private static final AdService service = new AdService();
 
+  // Simple Ad POJO
+  public static class Ad {
+    public String redirect_url;
+    public String text;
+
+    public Ad(String redirectUrl, String text) {
+      this.redirect_url = redirectUrl;
+      this.text = text;
+    }
+  }
+
+  // Request POJO
+  public static class AdRequest {
+    public List<String> context_keys;
+  }
+
   private void start() throws IOException {
     int port = Integer.parseInt(System.getenv().getOrDefault("PORT", "9555"));
-    healthMgr = new HealthStatusManager();
 
-    server =
-        ServerBuilder.forPort(port)
-            .addService(new AdServiceImpl())
-            .addService(healthMgr.getHealthService())
-            .build()
-            .start();
+    server = HttpServer.create(new InetSocketAddress(port), 0);
+    server.createContext("/ads", this::handleGetAds);
+    server.createContext("/_healthz", this::handleHealthCheck);
+    server.setExecutor(null);
+    server.start();
+
     logger.info("Ad Service started, listening on " + port);
     Runtime.getRuntime()
         .addShutdownHook(
             new Thread(
                 () -> {
                   System.err.println(
-                      "*** shutting down gRPC ads server since JVM is shutting down");
+                      "*** shutting down HTTP ads server since JVM is shutting down");
                   AdService.this.stop();
                   System.err.println("*** server shut down");
                 }));
-    healthMgr.setStatus("", ServingStatus.SERVING);
   }
 
   private void stop() {
     if (server != null) {
-      healthMgr.clearStatus("");
-      server.shutdown();
+      server.stop(0);
     }
   }
 
-  private static class AdServiceImpl extends hipstershop.AdServiceGrpc.AdServiceImplBase {
-
-    /**
-     * Retrieves ads based on context provided in the request {@code AdRequest}.
-     *
-     * @param req the request containing context.
-     * @param responseObserver the stream observer which gets notified with the value of {@code
-     *     AdResponse}
-     */
-    @Override
-    public void getAds(AdRequest req, StreamObserver<AdResponse> responseObserver) {
-      AdService service = AdService.getInstance();
-      try {
-        List<Ad> allAds = new ArrayList<>();
-        logger.info("received ad request (context_words=" + req.getContextKeysList() + ")");
-        if (req.getContextKeysCount() > 0) {
-          for (int i = 0; i < req.getContextKeysCount(); i++) {
-            Collection<Ad> ads = service.getAdsByCategory(req.getContextKeys(i));
-            allAds.addAll(ads);
-          }
-        } else {
-          allAds = service.getRandomAds();
-        }
-        if (allAds.isEmpty()) {
-          allAds = service.getRandomAds();
-        }
-        AdResponse reply = AdResponse.newBuilder().addAllAds(allAds).build();
-        responseObserver.onNext(reply);
-        responseObserver.onCompleted();
-      } catch (StatusRuntimeException e) {
-        logger.log(Level.WARN, "GetAds Failed with status {}", e.getStatus());
-        responseObserver.onError(e);
-      }
+  private void handleGetAds(HttpExchange exchange) throws IOException {
+    if (!"POST".equals(exchange.getRequestMethod())) {
+      sendResponse(exchange, 405, "Method Not Allowed");
+      return;
     }
+
+    try {
+      InputStream is = exchange.getRequestBody();
+      String body = new String(is.readAllBytes(), StandardCharsets.UTF_8);
+      AdRequest req = mapper.readValue(body, AdRequest.class);
+
+      List<Ad> allAds = new ArrayList<>();
+      logger.info("received ad request (context_words=" + (req.context_keys != null ? req.context_keys : "[]") + ")");
+
+      if (req.context_keys != null && !req.context_keys.isEmpty()) {
+        for (String key : req.context_keys) {
+          Collection<Ad> ads = getAdsByCategory(key);
+          allAds.addAll(ads);
+        }
+      } else {
+        allAds = getRandomAds();
+      }
+      if (allAds.isEmpty()) {
+        allAds = getRandomAds();
+      }
+
+      ObjectNode responseNode = mapper.createObjectNode();
+      ArrayNode adsArray = responseNode.putArray("ads");
+      for (Ad ad : allAds) {
+        ObjectNode adNode = mapper.createObjectNode();
+        adNode.put("redirect_url", ad.redirect_url);
+        adNode.put("text", ad.text);
+        adsArray.add(adNode);
+      }
+
+      String json = mapper.writeValueAsString(responseNode);
+      exchange.getResponseHeaders().set("Content-Type", "application/json");
+      sendResponse(exchange, 200, json);
+
+    } catch (Exception e) {
+      logger.error("GetAds Failed", e);
+      sendResponse(exchange, 500, "{\"error\": \"" + e.getMessage() + "\"}");
+    }
+  }
+
+  private void handleHealthCheck(HttpExchange exchange) throws IOException {
+    sendResponse(exchange, 200, "ok");
+  }
+
+  private void sendResponse(HttpExchange exchange, int statusCode, String response) throws IOException {
+    byte[] bytes = response.getBytes(StandardCharsets.UTF_8);
+    exchange.sendResponseHeaders(statusCode, bytes.length);
+    OutputStream os = exchange.getResponseBody();
+    os.write(bytes);
+    os.close();
   }
 
   private static final ImmutableListMultimap<String, Ad> adsMap = createAdsMap();
@@ -130,49 +159,20 @@ public final class AdService {
     return service;
   }
 
-  /** Await termination on the main thread since the grpc library uses daemon threads. */
   private void blockUntilShutdown() throws InterruptedException {
-    if (server != null) {
-      server.awaitTermination();
-    }
+    // Keep the main thread alive
+    Thread.currentThread().join();
   }
 
   private static ImmutableListMultimap<String, Ad> createAdsMap() {
-    Ad hairdryer =
-        Ad.newBuilder()
-            .setRedirectUrl("/product/2ZYFJ3GM2N")
-            .setText("Hairdryer for sale. 50% off.")
-            .build();
-    Ad tankTop =
-        Ad.newBuilder()
-            .setRedirectUrl("/product/66VCHSJNUP")
-            .setText("Tank top for sale. 20% off.")
-            .build();
-    Ad candleHolder =
-        Ad.newBuilder()
-            .setRedirectUrl("/product/0PUK6V6EV0")
-            .setText("Candle holder for sale. 30% off.")
-            .build();
-    Ad bambooGlassJar =
-        Ad.newBuilder()
-            .setRedirectUrl("/product/9SIQT8TOJO")
-            .setText("Bamboo glass jar for sale. 10% off.")
-            .build();
-    Ad watch =
-        Ad.newBuilder()
-            .setRedirectUrl("/product/1YMWWN1N4O")
-            .setText("Watch for sale. Buy one, get second kit for free")
-            .build();
-    Ad mug =
-        Ad.newBuilder()
-            .setRedirectUrl("/product/6E92ZMYYFZ")
-            .setText("Mug for sale. Buy two, get third one for free")
-            .build();
-    Ad loafers =
-        Ad.newBuilder()
-            .setRedirectUrl("/product/L9ECAV7KIM")
-            .setText("Loafers for sale. Buy one, get second one for free")
-            .build();
+    Ad hairdryer = new Ad("/product/2ZYFJ3GM2N", "Hairdryer for sale. 50% off.");
+    Ad tankTop = new Ad("/product/66VCHSJNUP", "Tank top for sale. 20% off.");
+    Ad candleHolder = new Ad("/product/0PUK6V6EV0", "Candle holder for sale. 30% off.");
+    Ad bambooGlassJar = new Ad("/product/9SIQT8TOJO", "Bamboo glass jar for sale. 10% off.");
+    Ad watch = new Ad("/product/1YMWWN1N4O", "Watch for sale. Buy one, get second kit for free");
+    Ad mug = new Ad("/product/6E92ZMYYFZ", "Mug for sale. Buy two, get third one for free");
+    Ad loafers = new Ad("/product/L9ECAV7KIM", "Loafers for sale. Buy one, get second one for free");
+
     return ImmutableListMultimap.<String, Ad>builder()
         .putAll("clothing", tankTop)
         .putAll("accessories", watch)
@@ -183,41 +183,8 @@ public final class AdService {
         .build();
   }
 
-  private static void initStats() {
-    if (System.getenv("DISABLE_STATS") != null) {
-      logger.info("Stats disabled.");
-      return;
-    }
-    logger.info("Stats enabled, but temporarily unavailable");
-
-    long sleepTime = 10; /* seconds */
-    int maxAttempts = 5;
-
-
-  }
-
-  private static void initTracing() {
-    if (System.getenv("DISABLE_TRACING") != null) {
-      logger.info("Tracing disabled.");
-      return;
-    }
-    logger.info("Tracing enabled but temporarily unavailable");
-    logger.info("See https://github.com/GoogleCloudPlatform/microservices-demo/issues/422 for more info.");
-
-    
-    logger.info("Tracing enabled - Stackdriver exporter initialized.");
-  }
-
   /** Main launches the server from the command line. */
   public static void main(String[] args) throws IOException, InterruptedException {
-
-    new Thread(
-            () -> {
-              initStats();
-              initTracing();
-            })
-        .start();
-
     logger.info("AdService starting.");
     final AdService service = AdService.getInstance();
     service.start();

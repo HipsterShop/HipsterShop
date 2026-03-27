@@ -16,14 +16,8 @@ spec:
       annotations:
         sidecar.istio.io/rewriteAppHTTPProbers: "true"
     spec:
-      serviceAccountName: loadgenerator
       terminationGracePeriodSeconds: 5
       restartPolicy: Always
-      securityContext:
-        fsGroup: 1000
-        runAsGroup: 1000
-        runAsNonRoot: true
-        runAsUser: 1000
       initContainers:
       - command:
         - /bin/sh
@@ -44,26 +38,12 @@ spec:
           echo "Failed to reach frontend after $MAX_RETRIES attempts."
           exit 1
         name: frontend-check
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-              - ALL
-          privileged: false
-          readOnlyRootFilesystem: true
         image: busybox:latest
         env:
         - name: FRONTEND_ADDR
           value: "frontend:80"
       containers:
       - name: main
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-              - ALL
-          privileged: false
-          readOnlyRootFilesystem: true
         image: cazzzzz/loadgenerator-hipster:latest
         env:
         - name: ENABLE_TRACING
@@ -83,8 +63,3 @@ spec:
           limits:
             cpu: 500m
             memory: 512Mi
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: loadgenerator

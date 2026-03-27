@@ -1,16 +1,10 @@
 using System;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
 using cartservice.cartstore;
-using cartservice.services;
-using Microsoft.Extensions.Caching.StackExchangeRedis;
-using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 
 namespace cartservice
@@ -49,15 +43,6 @@ namespace cartservice
                 });
                 services.AddSingleton<ICartStore, RedisCartStore>();
             }
-            else if (!string.IsNullOrEmpty(spannerProjectId) || !string.IsNullOrEmpty(spannerConnectionString))
-            {
-                services.AddSingleton<ICartStore, SpannerCartStore>();
-            }
-            else if (!string.IsNullOrEmpty(alloyDBConnectionString))
-            {
-                Console.WriteLine("Creating AlloyDB cart store");
-                services.AddSingleton<ICartStore, AlloyDBCartStore>();
-            }
             else
             {
                 Console.WriteLine("Redis cache host(hostname+port) was not specified. Starting a cart service using in memory store");
@@ -65,13 +50,11 @@ namespace cartservice
                 services.AddSingleton<ICartStore, RedisCartStore>();
             }
 
-
-            services.AddGrpc();
+            services.AddControllers();
 
             services.AddOpenTelemetry()
                 .WithTracing(builder => builder
                     .AddAspNetCoreInstrumentation()
-                    .AddGrpcClientInstrumentation()
                     .AddOtlpExporter());
         }
 
@@ -86,13 +69,7 @@ namespace cartservice
 
             app.UseEndpoints(endpoints =>
             {
-                endpoints.MapGrpcService<CartService>();
-                endpoints.MapGrpcService<cartservice.services.HealthCheckService>();
-
-                endpoints.MapGet("/", async context =>
-                {
-                    await context.Response.WriteAsync("Communication with gRPC endpoints must be made through a gRPC client. To learn how to create a client, visit: https://go.microsoft.com/fwlink/?linkid=2086909");
-                });
+                endpoints.MapControllers();
             });
         }
     }

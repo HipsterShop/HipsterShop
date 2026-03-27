@@ -13,25 +13,12 @@ spec:
       labels:
         app: currencyservice
     spec:
-      serviceAccountName: currencyservice
       terminationGracePeriodSeconds: 5
-      securityContext:
-        fsGroup: 1000
-        runAsGroup: 1000
-        runAsNonRoot: true
-        runAsUser: 1000
       containers:
       - name: server
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-              - ALL
-          privileged: false
-          readOnlyRootFilesystem: true
         image: cazzzzz/currencyservice-hipster:latest
         ports:
-        - name: grpc
+        - name: http
           containerPort: 7000
         env:
         - name: ENABLE_TRACING
@@ -40,13 +27,13 @@ spec:
           value: "jaeger.observability.svc.cluster.local:4317"
         - name: PORT
           value: "7000"
-        - name: DISABLE_PROFILER
-          value: "1"
         readinessProbe:
-          grpc:
+          httpGet:
+            path: "/_healthz"
             port: 7000
         livenessProbe:
-          grpc:
+          httpGet:
+            path: "/_healthz"
             port: 7000
         resources:
           requests:
@@ -67,11 +54,6 @@ spec:
   selector:
     app: currencyservice
   ports:
-  - name: grpc
+  - name: http
     port: 7000
     targetPort: 7000
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: currencyservice

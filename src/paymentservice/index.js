@@ -24,46 +24,29 @@ if (process.env.DISABLE_PROFILER) {
   });
 }
 
+const express = require('express');
+const charge = require('./charge');
 
-if (process.env.ENABLE_TRACING == "1") {
-  logger.info("Tracing enabled.")
+const PORT = process.env['PORT'] || '50051';
 
-  const { resourceFromAttributes } = require('@opentelemetry/resources');
+const app = express();
+app.use(express.json());
 
-  const { ATTR_SERVICE_NAME }= require('@opentelemetry/semantic-conventions');
+app.post('/charge', (req, res) => {
+  try {
+    logger.info(`PaymentService#Charge invoked with request ${JSON.stringify(req.body)}`);
+    const response = charge(req.body);
+    res.json(response);
+  } catch (err) {
+    console.warn(err);
+    res.status(400).json({ error: err.message });
+  }
+});
 
-  const { GrpcInstrumentation } = require('@opentelemetry/instrumentation-grpc');
-  const { registerInstrumentations } = require('@opentelemetry/instrumentation');
-  const opentelemetry = require('@opentelemetry/sdk-node');
+app.get('/_healthz', (req, res) => {
+  res.send('ok');
+});
 
-  const { OTLPTraceExporter } = require('@opentelemetry/exporter-otlp-grpc');
-
-  const collectorUrl = process.env.COLLECTOR_SERVICE_ADDR;
-  const traceExporter = new OTLPTraceExporter({url: collectorUrl});
-
-  const sdk = new opentelemetry.NodeSDK({
-    resource: resourceFromAttributes({
-      [ATTR_SERVICE_NAME]: process.env.OTEL_SERVICE_NAME || 'paymentservice',
-    }),
-    traceExporter: traceExporter,
-  });
-
-  registerInstrumentations({
-    instrumentations: [new GrpcInstrumentation()]
-  });
-
-  sdk.start()
-} else {
-  logger.info("Tracing disabled.")
-}
-
-
-const path = require('path');
-const HipsterShopServer = require('./server');
-
-const PORT = process.env['PORT'];
-const PROTO_PATH = path.join(__dirname, '/proto/');
-
-const server = new HipsterShopServer(PROTO_PATH, PORT);
-
-server.listen();
+app.listen(PORT, () => {
+  logger.info(`PaymentService REST server started on port ${PORT}`);
+});

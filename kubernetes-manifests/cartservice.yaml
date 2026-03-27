@@ -13,22 +13,9 @@ spec:
       labels:
         app: cartservice
     spec:
-      serviceAccountName: cartservice
       terminationGracePeriodSeconds: 5
-      securityContext:
-        fsGroup: 1000
-        runAsGroup: 1000
-        runAsNonRoot: true
-        runAsUser: 1000
       containers:
       - name: server
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-              - ALL
-          privileged: false
-          readOnlyRootFilesystem: true
         image: cazzzzz/cartservice-hipster:latest
         ports:
         - containerPort: 7070
@@ -37,6 +24,8 @@ spec:
           value: "1"
         - name: COLLECTOR_SERVICE_ADDR
           value: "jaeger.observability.svc.cluster.local:4317"
+        - name: ASPNETCORE_HTTP_PORTS
+          value: "7070"
         - name: DB_HOST
           value: "postgres"
         - name: DB_USER
@@ -57,12 +46,14 @@ spec:
             memory: 512Mi
         readinessProbe:
           initialDelaySeconds: 15
-          grpc:
+          httpGet:
+            path: "/_healthz"
             port: 7070
         livenessProbe:
           initialDelaySeconds: 15
           periodSeconds: 10
-          grpc:
+          httpGet:
+            path: "/_healthz"
             port: 7070
 ---
 apiVersion: v1
@@ -76,12 +67,6 @@ spec:
   selector:
     app: cartservice
   ports:
-  - name: grpc
+  - name: http
     port: 7070
     targetPort: 7070
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: cartservice
-

@@ -9,8 +9,8 @@
 package main
 
 import (
-	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"os"
@@ -19,12 +19,10 @@ import (
 	"cloud.google.com/go/alloydbconn"
 	secretmanager "cloud.google.com/go/secretmanager/apiv1"
 	"cloud.google.com/go/secretmanager/apiv1/secretmanagerpb"
-	pb "github.com/GoogleCloudPlatform/microservices-demo/src/productcatalogservice/genproto"
-	"github.com/golang/protobuf/jsonpb"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func loadCatalog(catalog *pb.ListProductsResponse) error {
+func loadCatalog(catalog *ListProductsResponse) error {
 	catalogMutex.Lock()
 	defer catalogMutex.Unlock()
 
@@ -38,7 +36,7 @@ func loadCatalog(catalog *pb.ListProductsResponse) error {
 	return loadCatalogFromLocalFile(catalog)
 }
 
-func loadCatalogFromLocalFile(catalog *pb.ListProductsResponse) error {
+func loadCatalogFromLocalFile(catalog *ListProductsResponse) error {
 	log.Info("loading catalog from local products.json file...")
 
 	catalogJSON, err := os.ReadFile("products.json")
@@ -47,7 +45,7 @@ func loadCatalogFromLocalFile(catalog *pb.ListProductsResponse) error {
 		return err
 	}
 
-	if err := jsonpb.Unmarshal(bytes.NewReader(catalogJSON), catalog); err != nil {
+	if err := json.Unmarshal(catalogJSON, catalog); err != nil {
 		log.Warnf("failed to parse the catalog JSON: %v", err)
 		return err
 	}
@@ -79,7 +77,7 @@ func getSecretPayload(project, secret, version string) (string, error) {
 	return string(result.Payload.Data), nil
 }
 
-func loadCatalogFromAlloyDB(catalog *pb.ListProductsResponse) error {
+func loadCatalogFromAlloyDB(catalog *ListProductsResponse) error {
 	log.Info("loading catalog from AlloyDB...")
 
 	projectID := os.Getenv("PROJECT_ID")
@@ -136,8 +134,8 @@ func loadCatalogFromAlloyDB(catalog *pb.ListProductsResponse) error {
 
 	catalog.Products = catalog.Products[:0]
 	for rows.Next() {
-		product := &pb.Product{}
-		product.PriceUsd = &pb.Money{}
+		product := &Product{}
+		product.PriceUsd = &Money{}
 
 		var categories string
 		err = rows.Scan(&product.Id, &product.Name, &product.Description,
@@ -157,7 +155,7 @@ func loadCatalogFromAlloyDB(catalog *pb.ListProductsResponse) error {
 	return nil
 }
 
-func loadCatalogFromPostgres(catalog *pb.ListProductsResponse) error {
+func loadCatalogFromPostgres(catalog *ListProductsResponse) error {
 	log.Info("loading catalog from PostgreSQL...")
 
 	dbHost := os.Getenv("DB_HOST")
@@ -190,8 +188,8 @@ func loadCatalogFromPostgres(catalog *pb.ListProductsResponse) error {
 
 	catalog.Products = catalog.Products[:0]
 	for rows.Next() {
-		product := &pb.Product{}
-		product.PriceUsd = &pb.Money{}
+		product := &Product{}
+		product.PriceUsd = &Money{}
 
 		var categories string
 		err = rows.Scan(&product.Id, &product.Name, &product.Description,

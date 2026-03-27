@@ -13,22 +13,9 @@ spec:
       labels:
         app: productcatalogservice
     spec:
-      serviceAccountName: productcatalogservice
       terminationGracePeriodSeconds: 5
-      securityContext:
-        fsGroup: 1000
-        runAsGroup: 1000
-        runAsNonRoot: true
-        runAsUser: 1000
       containers:
       - name: server
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-              - ALL
-          privileged: false
-          readOnlyRootFilesystem: true
         image: cazzzzz/productcatalogservice-hipster:latest
         ports:
         - containerPort: 3550
@@ -39,8 +26,6 @@ spec:
           value: "jaeger.observability.svc.cluster.local:4317"
         - name: PORT
           value: "3550"
-        - name: DISABLE_PROFILER
-          value: "1"
         - name: DB_HOST
           value: "postgres"
         - name: DB_USER
@@ -55,12 +40,14 @@ spec:
         readinessProbe:
           initialDelaySeconds: 10
           periodSeconds: 5
-          grpc:
+          httpGet:
+            path: "/_healthz"
             port: 3550
         livenessProbe:
           initialDelaySeconds: 10
           periodSeconds: 5
-          grpc:
+          httpGet:
+            path: "/_healthz"
             port: 3550
         resources:
           requests:
@@ -81,11 +68,6 @@ spec:
   selector:
     app: productcatalogservice
   ports:
-  - name: grpc
+  - name: http
     port: 3550
     targetPort: 3550
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: productcatalogservice

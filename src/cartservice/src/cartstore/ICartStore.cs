@@ -1,5 +1,6 @@
 
 using System.Threading.Tasks;
+using cartservice.models;
 
 namespace cartservice.cartstore
 {
@@ -7,7 +8,7 @@ namespace cartservice.cartstore
     {
         Task AddItemAsync(string userId, string productId, int quantity);
         Task EmptyCartAsync(string userId);
-        Task<Hipstershop.Cart> GetCartAsync(string userId);
+        Task<Cart> GetCartAsync(string userId);
         bool Ping();
     }
 }

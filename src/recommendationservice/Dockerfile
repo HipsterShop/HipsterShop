@@ -19,4 +19,4 @@ COPY --from=builder /usr/local/bin/ /usr/local/bin/
 COPY . .
 ENV PORT="8080"
 EXPOSE 8080
-ENTRYPOINT ["opentelemetry-instrument", "python", "recommendation_server.py"]
+ENTRYPOINT ["python", "recommendation_server.py"]
