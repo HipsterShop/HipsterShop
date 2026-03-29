@@ -50,14 +50,13 @@ spec:
             memory: 512Mi
         readinessProbe:
           initialDelaySeconds: 15
-          httpGet:
-            path: "/_healthz"
+          periodSeconds: 10
+          tcpSocket:
             port: 7070
         livenessProbe:
           initialDelaySeconds: 15
           periodSeconds: 10
-          httpGet:
-            path: "/_healthz"
+          tcpSocket:
             port: 7070
 ---
 apiVersion: v1
