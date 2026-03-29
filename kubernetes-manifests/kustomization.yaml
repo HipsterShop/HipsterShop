@@ -10,6 +10,7 @@ resources:
  - frontend.yaml
  - kgateway.yaml
  - mongodb.yaml
+ - pv.yaml
  - paymentservice.yaml
  - productcatalogservice.yaml
  - recommendationservice.yaml
