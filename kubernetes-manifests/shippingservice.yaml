@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
       - name: server
-        image: cazzzzz/shippingservice-hipster:latest
+        image: cazzzzz/tr-shippingservice-hipster:latest
         ports:
         - containerPort: 50051
         env:
