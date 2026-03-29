@@ -41,7 +41,7 @@ spec:
               name: mongo-secret
               key: MONGO_ROOT_PASSWORD
         - name: MONGO_URI
-          value: "mongodb://$(MONGO_USERNAME):$(MONGO_PASSWORD)@mongodb-0.mongo-headless:27017,mongodb-1.mongo-headless:27017,mongodb-2.mongo-headless:27017/shopdb?replicaSet=rs0&authSource=admin"
+          value: "mongodb://$(MONGO_USERNAME):$(MONGO_PASSWORD)@mongodb-0.mongo-headless:27017,mongodb-1.mongo-headless:27017,mongodb-2.mongo-headless:27017/shopdb?replicaSet=rs0&authSource=admin&authMechanism=SCRAM-SHA-256"
         resources:
           requests:
             cpu: 200m

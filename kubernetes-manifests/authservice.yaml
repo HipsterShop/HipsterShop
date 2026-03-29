@@ -15,6 +15,39 @@ spec:
         app: authservice
     spec:
       terminationGracePeriodSeconds: 5
+      initContainers:
+      - name: wait-for-mongodb-primary
+        image: mongo:7.0
+        env:
+        - name: MONGO_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: mongo-secret
+              key: MONGO_ROOT_USERNAME
+        - name: MONGO_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mongo-secret
+              key: MONGO_ROOT_PASSWORD
+        command:
+        - bash
+        - -c
+        - |
+          set -e
+
+          check_primary() {
+            mongosh "mongodb://$MONGO_USERNAME:$MONGO_PASSWORD@mongodb-0.mongo-headless:27017,mongodb-1.mongo-headless:27017,mongodb-2.mongo-headless:27017/admin?replicaSet=rs0&authSource=admin" \
+              --quiet --eval "db.hello().isWritablePrimary" | grep -q true || \
+            mongosh "mongodb://mongodb-0.mongo-headless:27017,mongodb-1.mongo-headless:27017,mongodb-2.mongo-headless:27017/admin?replicaSet=rs0" \
+              --quiet --eval "db.hello().isWritablePrimary" | grep -q true
+          }
+
+          echo "Waiting for MongoDB replica set primary..."
+          until check_primary; do
+            echo "No writable primary yet. Retrying in 3s..."
+            sleep 3
+          done
+          echo "MongoDB primary is ready."
       containers:
       - name: server
         image: cazzzzz/tr-authservice-hipster:latest
@@ -32,7 +65,7 @@ spec:
               name: mongo-secret
               key: MONGO_ROOT_PASSWORD
         - name: MONGO_URI
-          value: "mongodb://$(MONGO_USERNAME):$(MONGO_PASSWORD)@mongodb-0.mongo-headless:27017,mongodb-1.mongo-headless:27017,mongodb-2.mongo-headless:27017/shopdb?replicaSet=rs0&authSource=admin"
+          value: "mongodb://$(MONGO_USERNAME):$(MONGO_PASSWORD)@mongodb-0.mongo-headless:27017,mongodb-1.mongo-headless:27017,mongodb-2.mongo-headless:27017/shopdb?replicaSet=rs0&authSource=admin&authMechanism=SCRAM-SHA-256"
         - name: JWT_SECRET
           valueFrom:
             secretKeyRef:

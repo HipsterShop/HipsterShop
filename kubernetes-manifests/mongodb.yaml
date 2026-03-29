@@ -151,28 +151,32 @@ spec:
         - -c
         - |
           set -e
+
+          ping_mongo() {
+            local host="$1"
+            mongosh --host "$host" \
+              -u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD" \
+              --authenticationDatabase admin \
+              --eval "db.adminCommand('ping')" > /dev/null 2>&1 || \
+            mongosh --host "$host" \
+              --eval "db.adminCommand('ping')" > /dev/null 2>&1
+          }
+
           echo "Waiting for mongodb-0..."
-          until mongosh --host mongodb-0.mongo-headless:27017 \
-            -u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin \
-            --eval "db.adminCommand('ping')" > /dev/null 2>&1; do
+          until ping_mongo "mongodb-0.mongo-headless:27017"; do
             sleep 3
           done
           echo "mongodb-0 ready. Waiting for mongodb-1..."
-          until mongosh --host mongodb-1.mongo-headless:27017 \
-            -u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin \
-            --eval "db.adminCommand('ping')" > /dev/null 2>&1; do
+          until ping_mongo "mongodb-1.mongo-headless:27017"; do
             sleep 3
           done
           echo "mongodb-1 ready. Waiting for mongodb-2..."
-          until mongosh --host mongodb-2.mongo-headless:27017 \
-            -u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin \
-            --eval "db.adminCommand('ping')" > /dev/null 2>&1; do
+          until ping_mongo "mongodb-2.mongo-headless:27017"; do
             sleep 3
           done
+
           echo "All MongoDB pods ready. Initiating replica set..."
-          mongosh --host mongodb-0.mongo-headless:27017 \
-            -u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin \
-            --eval "
+          INIT_SCRIPT="
               try {
                 if (rs.status().ok === 1) {
                   print('Replica set already initialized. Skipping.');
@@ -191,3 +195,11 @@ spec:
               });
               print('Replica set initiated successfully.');
             "
+
+          if ! mongosh --host mongodb-0.mongo-headless:27017 \
+            -u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin \
+            --eval "$INIT_SCRIPT"; then
+            echo "Auth init path failed, retrying rs.initiate() without auth..."
+            mongosh --host mongodb-0.mongo-headless:27017 \
+              --eval "$INIT_SCRIPT"
+          fi
