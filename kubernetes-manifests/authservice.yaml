@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: authservice
+  labels:
+    app: authservice
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: authservice
+  template:
+    metadata:
+      labels:
+        app: authservice
+    spec:
+      terminationGracePeriodSeconds: 5
+      containers:
+      - name: server
+        image: cazzzzz/tr-authservice-hipster:latest
+        ports:
+        - containerPort: 8081
+        env:
+        - name: MONGO_URI
+          value: "mongodb://admin:mongopassword@mongodb-0.mongo-headless:27017,mongodb-1.mongo-headless:27017,mongodb-2.mongo-headless:27017/shopdb?replicaSet=rs0&authSource=admin"
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: jwt-secret
+              key: JWT_SECRET
+        - name: PORT
+          value: "8081"
+        readinessProbe:
+          initialDelaySeconds: 10
+          httpGet:
+            path: "/_healthz"
+            port: 8081
+        livenessProbe:
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          httpGet:
+            path: "/_healthz"
+            port: 8081
+        resources:
+          requests:
+            cpu: 100m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: authservice
+  labels:
+    app: authservice
+spec:
+  type: ClusterIP
+  selector:
+    app: authservice
+  ports:
+  - name: http
+    port: 8081
+    targetPort: 8081
+---
+# Secret for JWT signing key — change this value before deploying!
+apiVersion: v1
+kind: Secret
+metadata:
+  name: jwt-secret
+type: Opaque
+stringData:
+  JWT_SECRET: "change-me-to-a-long-random-secret-at-least-32-chars"

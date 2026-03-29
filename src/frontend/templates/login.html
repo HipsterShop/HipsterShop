@@ -1,0 +1,33 @@
+{{ template "header" . }}
+
+<main class="container py-5" style="max-width: 480px;">
+  <div class="card shadow-sm">
+    <div class="card-body p-4">
+      <h2 class="card-title mb-4 text-center" style="font-weight:700;">Log In</h2>
+
+      {{ if .error }}
+      <div class="alert alert-danger small">{{ .error }}</div>
+      {{ end }}
+
+      <form method="POST" action="{{ $.baseUrl }}/login">
+        <div class="form-group mb-3">
+          <label for="email">Email</label>
+          <input type="email" class="form-control" id="email" name="email"
+                 placeholder="you@example.com" required autocomplete="email" />
+        </div>
+        <div class="form-group mb-4">
+          <label for="password">Password</label>
+          <input type="password" class="form-control" id="password" name="password"
+                 placeholder="Password" required autocomplete="current-password" />
+        </div>
+        <button type="submit" class="btn btn-dark btn-block w-100">Log In</button>
+      </form>
+      <hr />
+      <p class="text-center small">
+        Don't have an account? <a href="{{ $.baseUrl }}/signup">Sign up</a>
+      </p>
+    </div>
+  </div>
+</main>
+
+{{ template "footer" . }}

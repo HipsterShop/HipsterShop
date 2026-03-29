@@ -1,0 +1,178 @@
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mongo-secret
+type: Opaque
+stringData:
+  MONGO_ROOT_USERNAME: admin
+  MONGO_ROOT_PASSWORD: mongopassword
+
+---
+# Headless service — stable DNS for replica set member discovery
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongo-headless
+  labels:
+    app: mongodb
+spec:
+  clusterIP: None
+  selector:
+    app: mongodb
+  ports:
+  - name: mongo
+    port: 27017
+    targetPort: 27017
+
+---
+# ClusterIP service — single stable endpoint for applications
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb
+  labels:
+    app: mongodb
+spec:
+  type: ClusterIP
+  selector:
+    app: mongodb
+  ports:
+  - name: mongo
+    port: 27017
+    targetPort: 27017
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mongodb
+  labels:
+    app: mongodb
+spec:
+  serviceName: mongo-headless
+  replicas: 3
+  selector:
+    matchLabels:
+      app: mongodb
+  template:
+    metadata:
+      labels:
+        app: mongodb
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+      - name: mongodb
+        image: mongo:7.0
+        # Start with replica set name rs0, bind on all interfaces
+        command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+        ports:
+        - containerPort: 27017
+          name: mongo
+        env:
+        - name: MONGO_INITDB_ROOT_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: mongo-secret
+              key: MONGO_ROOT_USERNAME
+        - name: MONGO_INITDB_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mongo-secret
+              key: MONGO_ROOT_PASSWORD
+        - name: MONGO_INITDB_DATABASE
+          value: "shopdb"
+        volumeMounts:
+        - name: mongo-data
+          mountPath: /data/db
+        readinessProbe:
+          exec:
+            command:
+            - mongosh
+            - --eval
+            - "db.adminCommand('ping')"
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          timeoutSeconds: 5
+        livenessProbe:
+          exec:
+            command:
+            - mongosh
+            - --eval
+            - "db.adminCommand('ping')"
+          initialDelaySeconds: 30
+          periodSeconds: 20
+          timeoutSeconds: 5
+        resources:
+          requests:
+            cpu: 200m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+  volumeClaimTemplates:
+  - metadata:
+      name: mongo-data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: 5Gi
+
+---
+# One-time Job to bootstrap the MongoDB Replica Set.
+# Run AFTER the StatefulSet pods are Ready.
+# Re-applying is safe — rs.initiate() is idempotent after first run.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: mongo-init-replicaset
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: mongo-init
+        image: mongo:7.0
+        command:
+        - bash
+        - -c
+        - |
+          set -e
+          echo "Waiting for mongodb-0..."
+          until mongosh --host mongodb-0.mongo-headless:27017 \
+            -u admin -p mongopassword --authenticationDatabase admin \
+            --eval "db.adminCommand('ping')" > /dev/null 2>&1; do
+            sleep 3
+          done
+          echo "mongodb-0 ready. Waiting for mongodb-1..."
+          until mongosh --host mongodb-1.mongo-headless:27017 \
+            -u admin -p mongopassword --authenticationDatabase admin \
+            --eval "db.adminCommand('ping')" > /dev/null 2>&1; do
+            sleep 3
+          done
+          echo "mongodb-1 ready. Waiting for mongodb-2..."
+          until mongosh --host mongodb-2.mongo-headless:27017 \
+            -u admin -p mongopassword --authenticationDatabase admin \
+            --eval "db.adminCommand('ping')" > /dev/null 2>&1; do
+            sleep 3
+          done
+          echo "All MongoDB pods ready. Initiating replica set..."
+          mongosh --host mongodb-0.mongo-headless:27017 \
+            -u admin -p mongopassword --authenticationDatabase admin \
+            --eval "
+              var status = rs.status();
+              if (status.ok === 1) {
+                print('Replica set already initialized. Skipping.');
+              } else {
+                rs.initiate({
+                  _id: 'rs0',
+                  members: [
+                    { _id: 0, host: 'mongodb-0.mongo-headless:27017', priority: 2 },
+                    { _id: 1, host: 'mongodb-1.mongo-headless:27017', priority: 1 },
+                    { _id: 2, host: 'mongodb-2.mongo-headless:27017', priority: 1 }
+                  ]
+                });
+                print('Replica set initiated successfully.');
+              }
+            "

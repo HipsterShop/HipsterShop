@@ -30,17 +30,8 @@ spec:
           value: "1"
         - name: ASPNETCORE_HTTP_PORTS
           value: "7070"
-        - name: DB_HOST
-          value: "postgres"
-        - name: DB_USER
-          value: "postgres"
-        - name: DB_NAME
-          value: "shopdb"
-        - name: DB_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: postgres-secret
-              key: POSTGRES_PASSWORD
+        - name: MONGO_URI
+          value: "mongodb://admin:mongopassword@mongodb-0.mongo-headless:27017,mongodb-1.mongo-headless:27017,mongodb-2.mongo-headless:27017/shopdb?replicaSet=rs0&authSource=admin"
         resources:
           requests:
             cpu: 200m

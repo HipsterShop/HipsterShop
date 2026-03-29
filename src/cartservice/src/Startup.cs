@@ -22,32 +22,25 @@ namespace cartservice
         
         public void ConfigureServices(IServiceCollection services)
         {
-            string redisAddress = Configuration["REDIS_ADDR"];
-            string spannerProjectId = Configuration["SPANNER_PROJECT"];
-            string spannerConnectionString = Configuration["SPANNER_CONNECTION_STRING"];
-            string alloyDBConnectionString = Configuration["ALLOYDB_PRIMARY_IP"];
-            string dbHost = Configuration["DB_HOST"];
-            string dbUser = Configuration["DB_USER"];
-            string dbPass = Configuration["DB_PASSWORD"];
-            string dbName = Configuration["DB_NAME"];
+            string mongoUri  = Configuration["MONGO_URI"];
+            string redisAddr = Configuration["REDIS_ADDR"];
 
-            if (!string.IsNullOrEmpty(dbHost))
+            if (!string.IsNullOrEmpty(mongoUri))
             {
-                Console.WriteLine("Creating Postgres cart store");
-                string connectionString = $"Host={dbHost};Username={dbUser};Password={dbPass};Database={dbName}";
-                services.AddSingleton<ICartStore>(new PostgresCartStore(connectionString));
+                Console.WriteLine("Creating MongoDB cart store");
+                services.AddSingleton<ICartStore>(new MongoCartStore(mongoUri));
             }
-            else if (!string.IsNullOrEmpty(redisAddress))
+            else if (!string.IsNullOrEmpty(redisAddr))
             {
                 services.AddStackExchangeRedisCache(options =>
                 {
-                    options.Configuration = redisAddress;
+                    options.Configuration = redisAddr;
                 });
                 services.AddSingleton<ICartStore, RedisCartStore>();
             }
             else
             {
-                Console.WriteLine("Redis cache host(hostname+port) was not specified. Starting a cart service using in memory store");
+                Console.WriteLine("No DB configured. Using in-memory store.");
                 services.AddDistributedMemoryCache();
                 services.AddSingleton<ICartStore, RedisCartStore>();
             }
