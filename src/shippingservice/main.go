@@ -128,7 +128,7 @@ func handleGetQuote(w http.ResponseWriter, r *http.Request) {
 			itemCount += uint32(item.Quantity)
 		}
 	}
-	quote := CreateQuoteFromCount(itemCount)
+	quote := CreateQuoteFromCount(int(itemCount))
 
 	resp := GetQuoteResponse{
 		CostUsd: &Money{

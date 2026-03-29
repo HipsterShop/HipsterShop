@@ -44,7 +44,7 @@ spec:
           value: "frontend:80"
       containers:
       - name: main
-        image: cazzzzz/loadgenerator-hipster:latest
+        image: cazzzzz/tr-loadgenerator-hipster:latest
         env:
         - name: ENABLE_TRACING
           value: "1"

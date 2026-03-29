@@ -16,7 +16,7 @@ spec:
       terminationGracePeriodSeconds: 5
       containers:
       - name: server
-        image: cazzzzz/cartservice-hipster:latest
+        image: cazzzzz/tr-cartservice-hipster:latest
         ports:
         - containerPort: 7070
         env:
