@@ -23,10 +23,7 @@ namespace cartservice.cartstore
             var database = client.GetDatabase(dbName);
             _collection = database.GetCollection<CartDocument>("carts");
 
-            // Ensure index on userId for fast lookups
-            var indexKeys = Builders<CartDocument>.IndexKeys.Ascending(c => c.UserId);
-            var indexOptions = new CreateIndexOptions { Unique = true };
-            _collection.Indexes.CreateOne(new CreateIndexModel<CartDocument>(indexKeys, indexOptions));
+            // UserId is the BSON _id field, which already has MongoDB's built-in unique index.
         }
 
         public async Task AddItemAsync(string userId, string productId, int quantity)
