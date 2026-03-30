@@ -14,6 +14,31 @@ spec:
         app: cartservice
     spec:
       terminationGracePeriodSeconds: 5
+      initContainers:
+      - name: wait-for-cart-mongo-auth
+        image: mongo:7.0
+        env:
+        - name: MONGO_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: mongo-app-secret
+              key: CART_MONGO_USERNAME
+        - name: MONGO_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mongo-app-secret
+              key: CART_MONGO_PASSWORD
+        command:
+        - bash
+        - -c
+        - |
+          set -e
+          echo "Waiting for cart Mongo auth to become ready..."
+          until mongosh "mongodb://$MONGO_USERNAME:$MONGO_PASSWORD@mongodb-0.mongo-headless:27017,mongodb-1.mongo-headless:27017,mongodb-2.mongo-headless:27017/cart_db?replicaSet=rs0&authSource=cart_db&authMechanism=SCRAM-SHA-256" --quiet --eval "db.adminCommand('ping').ok" | grep -q 1; do
+            echo "Cart Mongo auth not ready yet. Retrying in 3s..."
+            sleep 3
+          done
+          echo "Cart Mongo auth ready."
       containers:
       - name: server
         image: cazzzzz/trf-cartservice-hipster:latest
@@ -52,13 +77,15 @@ spec:
             cpu: 300m
             memory: 512Mi
         readinessProbe:
-          initialDelaySeconds: 15
+          initialDelaySeconds: 30
           periodSeconds: 10
+          failureThreshold: 6
           tcpSocket:
             port: 7070
         livenessProbe:
-          initialDelaySeconds: 15
+          initialDelaySeconds: 60
           periodSeconds: 10
+          failureThreshold: 6
           tcpSocket:
             port: 7070
 ---
