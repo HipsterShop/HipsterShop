@@ -60,13 +60,15 @@
                         {{ end }}
                     </a>
 
-                    {{ if $.is_authenticated }}
-                    <span class="ml-3" style="font-size: 14px; color: #333333;">{{ $.user_email }}</span>
-                    <a href="{{ $.baseUrl }}/logout" class="btn btn-outline-dark btn-sm ml-3" style="border-radius: 999px; padding: 6px 14px;">Logout</a>
-                    {{ else }}
-                    <a href="{{ $.baseUrl }}/login" class="btn btn-outline-dark btn-sm ml-3" style="border-radius: 999px; padding: 6px 14px;">Login</a>
-                    <a href="{{ $.baseUrl }}/signup" class="btn btn-dark btn-sm ml-2" style="border-radius: 999px; padding: 6px 14px;">Sign Up</a>
-                    {{ end }}
+                    <div class="auth-actions">
+                        {{ if $.is_authenticated }}
+                        <span class="auth-email">{{ $.user_email }}</span>
+                        <a href="{{ $.baseUrl }}/logout" class="btn auth-btn auth-btn-outline">Logout</a>
+                        {{ else }}
+                        <a href="{{ $.baseUrl }}/login" class="btn auth-btn auth-btn-outline">Login</a>
+                        <a href="{{ $.baseUrl }}/signup" class="btn auth-btn auth-btn-solid">Sign Up</a>
+                        {{ end }}
+                    </div>
                 </div>
             </div>
         </div>
