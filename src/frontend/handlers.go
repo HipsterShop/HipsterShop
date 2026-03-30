@@ -467,7 +467,7 @@ func (fe *frontendServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusFound)
 		return
 	}
-	if err := templates.ExecuteTemplate(w, "login", injectCommonTemplateData(r, map[string]interface{}{})); err != nil {
+	if err := templates.ExecuteTemplate(w, "login.html", injectCommonTemplateData(r, map[string]interface{}{})); err != nil {
 		log.Println(err)
 	}
 }
@@ -478,7 +478,7 @@ func (fe *frontendServer) loginPostHandler(w http.ResponseWriter, r *http.Reques
 	password := r.FormValue("password")
 
 	if email == "" || password == "" {
-		if err := templates.ExecuteTemplate(w, "login", injectCommonTemplateData(r, map[string]interface{}{
+		if err := templates.ExecuteTemplate(w, "login.html", injectCommonTemplateData(r, map[string]interface{}{
 			"error": "Email and password are required",
 		})); err != nil {
 			log.Println(err)
@@ -488,7 +488,7 @@ func (fe *frontendServer) loginPostHandler(w http.ResponseWriter, r *http.Reques
 
 	authCookies, err := fe.authLogin(r.Context(), email, password)
 	if err != nil {
-		if err := templates.ExecuteTemplate(w, "login", injectCommonTemplateData(r, map[string]interface{}{
+		if err := templates.ExecuteTemplate(w, "login.html", injectCommonTemplateData(r, map[string]interface{}{
 			"error": err.Error(),
 		})); err != nil {
 			log.Println(err)
@@ -507,7 +507,7 @@ func (fe *frontendServer) signupHandler(w http.ResponseWriter, r *http.Request) 
 		w.WriteHeader(http.StatusFound)
 		return
 	}
-	if err := templates.ExecuteTemplate(w, "signup", injectCommonTemplateData(r, map[string]interface{}{})); err != nil {
+	if err := templates.ExecuteTemplate(w, "signup.html", injectCommonTemplateData(r, map[string]interface{}{})); err != nil {
 		log.Println(err)
 	}
 }
@@ -519,7 +519,7 @@ func (fe *frontendServer) signupPostHandler(w http.ResponseWriter, r *http.Reque
 	password := r.FormValue("password")
 
 	if email == "" || password == "" {
-		if err := templates.ExecuteTemplate(w, "signup", injectCommonTemplateData(r, map[string]interface{}{
+		if err := templates.ExecuteTemplate(w, "signup.html", injectCommonTemplateData(r, map[string]interface{}{
 			"error": "Email and password are required",
 		})); err != nil {
 			log.Println(err)
@@ -529,7 +529,7 @@ func (fe *frontendServer) signupPostHandler(w http.ResponseWriter, r *http.Reque
 
 	authCookies, err := fe.authSignup(r.Context(), name, email, password)
 	if err != nil {
-		if err := templates.ExecuteTemplate(w, "signup", injectCommonTemplateData(r, map[string]interface{}{
+		if err := templates.ExecuteTemplate(w, "signup.html", injectCommonTemplateData(r, map[string]interface{}{
 			"error": err.Error(),
 		})); err != nil {
 			log.Println(err)

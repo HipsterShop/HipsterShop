@@ -62,10 +62,10 @@
 
                     {{ if $.is_authenticated }}
                     <span class="ml-3" style="font-size: 14px; color: #333333;">{{ $.user_email }}</span>
-                    <a href="{{ $.baseUrl }}/logout" class="ml-3" style="font-size: 14px; color: #111111; text-decoration: none;">Logout</a>
+                    <a href="{{ $.baseUrl }}/logout" class="btn btn-outline-dark btn-sm ml-3" style="border-radius: 999px; padding: 6px 14px;">Logout</a>
                     {{ else }}
-                    <a href="{{ $.baseUrl }}/login" class="ml-3" style="font-size: 14px; color: #111111; text-decoration: none;">Login</a>
-                    <a href="{{ $.baseUrl }}/signup" class="ml-3" style="font-size: 14px; color: #111111; text-decoration: none;">Sign Up</a>
+                    <a href="{{ $.baseUrl }}/login" class="btn btn-outline-dark btn-sm ml-3" style="border-radius: 999px; padding: 6px 14px;">Login</a>
+                    <a href="{{ $.baseUrl }}/signup" class="btn btn-dark btn-sm ml-2" style="border-radius: 999px; padding: 6px 14px;">Sign Up</a>
                     {{ end }}
                 </div>
             </div>

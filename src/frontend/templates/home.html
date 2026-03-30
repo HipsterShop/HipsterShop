@@ -17,11 +17,6 @@
 {{ define "home" }}
 
 {{ template "header" . }}
-<div {{ with $.platform_css }} class="{{.}}" {{ end }}>
-  <span class="platform-flag">
-    {{$.platform_name}}
-  </span>
-</div>
 <main role="main" class="home">
 
   <!-- The image at the top of the home page, displayed on smaller screens. -->
