@@ -26,17 +26,18 @@ spec:
           value: "jaeger.observability.svc.cluster.local:4317"
         - name: PORT
           value: "3550"
-        - name: DB_HOST
-          value: "postgres"
-        - name: DB_USER
-          value: "postgres"
-        - name: DB_NAME
-          value: "shopdb"
-        - name: DB_PASSWORD
+        - name: MONGO_USERNAME
           valueFrom:
             secretKeyRef:
-              name: postgres-secret
-              key: POSTGRES_PASSWORD
+              name: mongo-secret
+              key: MONGO_ROOT_USERNAME
+        - name: MONGO_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mongo-secret
+              key: MONGO_ROOT_PASSWORD
+        - name: MONGO_URI
+          value: "mongodb://$(MONGO_USERNAME):$(MONGO_PASSWORD)@mongodb-0.mongo-headless:27017,mongodb-1.mongo-headless:27017,mongodb-2.mongo-headless:27017/shopdb?replicaSet=rs0&authSource=admin"
         readinessProbe:
           initialDelaySeconds: 10
           periodSeconds: 5

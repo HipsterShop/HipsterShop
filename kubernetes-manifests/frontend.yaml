@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: server
-          image: cazzzzz/kgw-frontend-hipster:latest
+          image: cazzzzz/ai-frontend-hipster:v3
           ports:
           - containerPort: 8080
           readinessProbe:
@@ -42,7 +42,7 @@ spec:
           - name: PORT
             value: "8080"
           - name: GATEWAY_ADDR
-            value: "hipstershop-gateway.kgateway-system.svc.cluster.local"
+            value: "hipstershop-gateway.hipster.svc.cluster.local"
             #chckhere**
           - name: ENABLE_ASSISTANT
             value: "true"

@@ -1,84 +1,47 @@
-apiVersion: storage.k8s.io/v1
-kind: StorageClass
-metadata:
-  name: manual
-provisioner: kubernetes.io/no-provisioner
-volumeBindingMode: WaitForFirstConsumer
-
 ---
 apiVersion: v1
 kind: PersistentVolume
 metadata:
   name: mongo-pv-0
-  labels:
-    app: mongodb
 spec:
   capacity:
-    storage: 10Gi
-  volumeMode: Filesystem
+    storage: 5Gi
   accessModes:
     - ReadWriteOnce
+  storageClassName: ""
   persistentVolumeReclaimPolicy: Retain
-  storageClassName: manual
-  local:
-    path: /mnt/mongo-0
-  nodeAffinity:
-    required:
-      nodeSelectorTerms:
-        - matchExpressions:
-            - key: kubernetes.io/hostname
-              operator: In
-              values:
-                - ip-172-31-28-168
+  hostPath:
+    path: /mnt/data/mongo-0
+    type: DirectoryOrCreate
 
 ---
 apiVersion: v1
 kind: PersistentVolume
 metadata:
   name: mongo-pv-1
-  labels:
-    app: mongodb
 spec:
   capacity:
-    storage: 10Gi
-  volumeMode: Filesystem
+    storage: 5Gi
   accessModes:
     - ReadWriteOnce
+  storageClassName: ""
   persistentVolumeReclaimPolicy: Retain
-  storageClassName: manual
-  local:
-    path: /mnt/mongo-1
-  nodeAffinity:
-    required:
-      nodeSelectorTerms:
-        - matchExpressions:
-            - key: kubernetes.io/hostname
-              operator: In
-              values:
-                - ip-172-31-45-233
+  hostPath:
+    path: /mnt/data/mongo-1
+    type: DirectoryOrCreate
 
 ---
 apiVersion: v1
 kind: PersistentVolume
 metadata:
   name: mongo-pv-2
-  labels:
-    app: mongodb
 spec:
   capacity:
-    storage: 10Gi
-  volumeMode: Filesystem
+    storage: 5Gi
   accessModes:
     - ReadWriteOnce
+  storageClassName: ""
   persistentVolumeReclaimPolicy: Retain
-  storageClassName: manual
-  local:
-    path: /mnt/mongo-2
-  nodeAffinity:
-    required:
-      nodeSelectorTerms:
-        - matchExpressions:
-            - key: kubernetes.io/hostname
-              operator: In
-              values:
-                - ip-172-31-28-168
+  hostPath:
+    path: /mnt/data/mongo-2
+    type: DirectoryOrCreate
