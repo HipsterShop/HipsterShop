@@ -35,25 +35,16 @@ spec:
               httpHeaders:
               - name: "Cookie"
                 value: "shop_session-id=x-liveness-probe"
-          env:
-          - name: ENABLE_TRACING
-            value: "1"
-          - name: COLLECTOR_SERVICE_ADDR
-            value: "jaeger.observability.svc.cluster.local:4317"
+          envFrom:
+        - configMapRef:
+            name: hipster-config
+        env:
           - name: PORT
             value: "8080"
           - name: GATEWAY_ADDR
             value: "hipstershop-gateway.hipster.svc.cluster.local"
             #chckhere**
-          - name: ENABLE_ASSISTANT
-            value: "true"
-          - name: GEMINI_MODEL
-            value: "gemini-2.5-flash"
-          - name: GEMINI_API_KEY
-            valueFrom:
-              secretKeyRef:
-                name: gemini-api
-                key: GEMINI_API_KEY
+
           - name: JWT_SECRET
             valueFrom:
               secretKeyRef:

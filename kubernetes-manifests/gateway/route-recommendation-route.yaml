@@ -1,0 +1,25 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  namespace: hipster
+  name: recommendation-route
+  
+  labels:
+    app: recommendationservice
+spec:
+  parentRefs:
+    - name: hipstershop-gateway
+  rules:
+    - matches:
+        - path:
+            type: Exact
+            value: /api/recommendations
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplaceFullPath
+              replaceFullPath: /recommendations
+      backendRefs:
+        - name: recommendationservice
+          port: 8080

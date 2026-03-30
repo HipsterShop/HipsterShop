@@ -20,11 +20,10 @@ spec:
         image: cazzzzz/trf-productcatalogservice-hipster:v1
         ports:
         - containerPort: 3550
+        envFrom:
+        - configMapRef:
+            name: hipster-config
         env:
-        - name: ENABLE_TRACING
-          value: "1"
-        - name: COLLECTOR_SERVICE_ADDR
-          value: "jaeger.observability.svc.cluster.local:4317"
         - name: PORT
           value: "3550"
         - name: MONGO_USERNAME

@@ -19,6 +19,9 @@ spec:
       initContainers:
       - name: wait-for-mongodb-primary
         image: mongo:7.0
+        envFrom:
+        - configMapRef:
+            name: hipster-config
         env:
         - name: MONGO_USERNAME
           valueFrom:
@@ -54,6 +57,9 @@ spec:
         image: cazzzzz/trf-authservice-hipster:latest
         ports:
         - containerPort: 8081
+        envFrom:
+        - configMapRef:
+            name: hipster-config
         env:
         - name: MONGO_USERNAME
           valueFrom:

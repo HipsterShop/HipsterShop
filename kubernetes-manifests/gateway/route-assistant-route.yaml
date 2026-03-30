@@ -1,0 +1,18 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  namespace: hipster
+  name: assistant-route
+  labels:
+    app: assistantservice
+spec:
+  parentRefs:
+    - name: hipstershop-gateway
+  rules:
+    - matches:
+        - path:
+            type: Exact
+            value: /api/assistant/chat
+      backendRefs:
+        - name: assistantservice
+          port: 8080

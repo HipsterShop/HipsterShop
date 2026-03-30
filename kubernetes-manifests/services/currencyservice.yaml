@@ -2,39 +2,41 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   namespace: hipster
-  name: shippingservice
+  name: currencyservice
   labels:
-    app: shippingservice
+    app: currencyservice
 spec:
   selector:
     matchLabels:
-      app: shippingservice
+      app: currencyservice
   template:
     metadata:
       labels:
-        app: shippingservice
+        app: currencyservice
     spec:
+      terminationGracePeriodSeconds: 5
       containers:
       - name: server
-        image: cazzzzz/trf-shippingservice-hipster:latest
+        image: cazzzzz/trf-currencyservice-hipster:latest
         ports:
-        - containerPort: 50051
+        - name: http
+          containerPort: 7000
+        envFrom:
+        - configMapRef:
+            name: hipster-config
         env:
-        - name: ENABLE_TRACING
-          value: "1"
-        - name: COLLECTOR_SERVICE_ADDR
-          value: "jaeger.observability.svc.cluster.local:4317"
         - name: PORT
-          value: "50051"
+          value: "7000"
+        - name: DISABLE_PROFILER
+          value: "1"
         readinessProbe:
-          periodSeconds: 5
           httpGet:
             path: "/_healthz"
-            port: 50051
+            port: 7000
         livenessProbe:
           httpGet:
             path: "/_healthz"
-            port: 50051
+            port: 7000
         resources:
           requests:
             cpu: 100m
@@ -47,14 +49,14 @@ apiVersion: v1
 kind: Service
 metadata:
   namespace: hipster
-  name: shippingservice
+  name: currencyservice
   labels:
-    app: shippingservice
+    app: currencyservice
 spec:
   type: ClusterIP
   selector:
-    app: shippingservice
+    app: currencyservice
   ports:
   - name: http
-    port: 50051
-    targetPort: 50051
+    port: 7000
+    targetPort: 7000

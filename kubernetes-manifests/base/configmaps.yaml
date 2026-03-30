@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hipster-config
+  namespace: hipster
+data:
+  ENABLE_TRACING: "1"
+  COLLECTOR_SERVICE_ADDR: "jaeger:4317"
+  FRONTEND_MESSAGE: "Checkout HipsterShop today!"
+  ENABLE_ASSISTANT: "true"

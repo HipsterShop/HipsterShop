@@ -1,6 +1,8 @@
 #!/bin/bash
 docker build -t cazzzzz/trf-adservice-hipster:latest ./src/adservice
 docker push cazzzzz/trf-adservice-hipster:latest
+docker build -t cazzzzz/trf-assistantservice-hipster:latest ./src/assistantservice
+docker push cazzzzz/trf-assistantservice-hipster:latest
 docker build -t cazzzzz/trf-authservice-hipster:latest ./src/authservice
 docker push cazzzzz/trf-authservice-hipster:latest
 docker build -t cazzzzz/trf-cartservice-hipster:latest ./src/cartservice/src

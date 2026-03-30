@@ -1,0 +1,38 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  namespace: hipster
+  name: currency-route
+  
+  labels:
+    app: currencyservice
+spec:
+  parentRefs:
+    - name: hipstershop-gateway
+  rules:
+    - matches:
+        - path:
+            type: Exact
+            value: /api/currency/currencies
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplaceFullPath
+              replaceFullPath: /currencies
+      backendRefs:
+        - name: currencyservice
+          port: 7000
+    - matches:
+        - path:
+            type: Exact
+            value: /api/currency/convert
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplaceFullPath
+              replaceFullPath: /convert
+      backendRefs:
+        - name: currencyservice
+          port: 7000

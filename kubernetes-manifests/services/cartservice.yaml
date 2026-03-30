@@ -18,6 +18,9 @@ spec:
       initContainers:
       - name: wait-for-cart-mongo-auth
         image: mongo:7.0
+        envFrom:
+        - configMapRef:
+            name: hipster-config
         env:
         - name: MONGO_USERNAME
           valueFrom:
@@ -45,11 +48,10 @@ spec:
         image: cazzzzz/trf-cartservice-hipster:v1
         ports:
         - containerPort: 7070
+        envFrom:
+        - configMapRef:
+            name: hipster-config
         env:
-        - name: ENABLE_TRACING
-          value: "1"
-        - name: COLLECTOR_SERVICE_ADDR
-          value: "jaeger.observability.svc.cluster.local:4317"
         - name: OTEL_SDK_DISABLED
           value: "true"
         - name: DISABLE_TRACING

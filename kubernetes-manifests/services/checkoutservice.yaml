@@ -27,11 +27,10 @@ spec:
             httpGet:
               path: "/_healthz"
               port: 5050
-          env:
-          - name: ENABLE_TRACING
-            value: "1"
-          - name: COLLECTOR_SERVICE_ADDR
-            value: "jaeger.observability.svc.cluster.local:4317"
+          envFrom:
+        - configMapRef:
+            name: hipster-config
+        env:
           - name: PORT
             value: "5050"
           - name: PRODUCT_CATALOG_SERVICE_ADDR
