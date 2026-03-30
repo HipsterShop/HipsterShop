@@ -1,6 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  namespace: hipster
   name: authservice
   labels:
     app: authservice
@@ -97,6 +98,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
+  namespace: hipster
   name: authservice
   labels:
     app: authservice
@@ -113,6 +115,7 @@ spec:
 apiVersion: v1
 kind: Secret
 metadata:
+  namespace: hipster
   name: jwt-secret
 type: Opaque
 stringData:

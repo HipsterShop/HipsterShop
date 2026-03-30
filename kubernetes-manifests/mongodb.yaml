@@ -2,6 +2,7 @@
 apiVersion: v1
 kind: Secret
 metadata:
+  namespace: hipster
   name: mongo-secret
 type: Opaque
 stringData:
@@ -12,6 +13,7 @@ stringData:
 apiVersion: v1
 kind: Secret
 metadata:
+  namespace: hipster
   name: mongo-app-secret
 type: Opaque
 stringData:
@@ -35,6 +37,7 @@ stringData:
 apiVersion: v1
 kind: Service
 metadata:
+  namespace: hipster
   name: mongo-headless
   labels:
     app: mongodb
@@ -52,6 +55,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
+  namespace: hipster
   name: mongodb
   labels:
     app: mongodb
@@ -68,6 +72,7 @@ spec:
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
+  namespace: hipster
   name: mongodb
   labels:
     app: mongodb
@@ -149,6 +154,7 @@ spec:
 apiVersion: batch/v1
 kind: Job
 metadata:
+  namespace: hipster
   name: mongo-init-replicaset
 spec:
   backoffLimit: 10
@@ -352,6 +358,7 @@ spec:
 apiVersion: batch/v1
 kind: Job
 metadata:
+  namespace: hipster
   name: mongo-seed-products
 spec:
   backoffLimit: 10
@@ -418,6 +425,7 @@ spec:
 apiVersion: batch/v1
 kind: Job
 metadata:
+  namespace: hipster
   name: mongo-migrate-shopdb-data
 spec:
   backoffLimit: 10

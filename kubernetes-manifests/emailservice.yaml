@@ -1,6 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  namespace: hipster
   name: emailservice
   labels:
     app: emailservice
@@ -63,6 +64,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
+  namespace: hipster
   name: emailservice
   labels:
     app: emailservice

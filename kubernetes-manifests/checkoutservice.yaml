@@ -1,6 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  namespace: hipster
   name: checkoutservice
   labels:
     app: checkoutservice
@@ -74,6 +75,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
+  namespace: hipster
   name: checkoutservice
   labels:
     app: checkoutservice

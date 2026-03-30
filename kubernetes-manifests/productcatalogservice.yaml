@@ -1,6 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  namespace: hipster
   name: productcatalogservice
   labels:
     app: productcatalogservice
@@ -68,6 +69,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
+  namespace: hipster
   name: productcatalogservice
   labels:
     app: productcatalogservice

@@ -2,6 +2,7 @@
 apiVersion: gateway.networking.k8s.io/v1
 kind: GatewayClass
 metadata:
+  namespace: hipster
   name: kgateway
 spec:
   controllerName: kgateway.dev/kgateway
@@ -10,6 +11,7 @@ spec:
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
+  namespace: hipster
   name: hipstershop-gateway
   labels:
     app: hipstershop
@@ -27,6 +29,7 @@ spec:
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
+  namespace: hipster
   name: frontend-route
   
   labels:
@@ -110,6 +113,7 @@ spec:
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
+  namespace: hipster
   name: productcatalog-route
   
   labels:
@@ -149,6 +153,7 @@ spec:
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
+  namespace: hipster
   name: cart-route
   
   labels:
@@ -175,6 +180,7 @@ spec:
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
+  namespace: hipster
   name: currency-route
   
   labels:
@@ -214,6 +220,7 @@ spec:
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
+  namespace: hipster
   name: shipping-route
   
   labels:
@@ -240,6 +247,7 @@ spec:
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
+  namespace: hipster
   name: checkout-route
   
   labels:
@@ -266,6 +274,7 @@ spec:
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
+  namespace: hipster
   name: recommendation-route
   
   labels:
@@ -292,6 +301,7 @@ spec:
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
+  namespace: hipster
   name: ad-route
   
   labels:
@@ -318,6 +328,7 @@ spec:
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
+  namespace: hipster
   name: payment-route
   
   labels:
@@ -344,6 +355,7 @@ spec:
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
+  namespace: hipster
   name: auth-route
 
   labels:
@@ -409,6 +421,7 @@ spec:
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
+  namespace: hipster
   name: email-route
   
   labels:
