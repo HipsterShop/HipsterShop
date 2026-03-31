@@ -140,7 +140,7 @@ spec:
       name: mongo-data
     spec:
       accessModes: ["ReadWriteOnce"]
-      storageClassName: ""
+      storageClassName: "nfs"
       resources:
         requests:
           storage: 5Gi
