@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: hipster
+  name: loadgenerator
+  labels:
+    app: loadgenerator
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: loadgenerator
+  template:
+    metadata:
+      labels:
+        app: loadgenerator
+    spec:
+      containers:
+        - name: load-generator
+          image: busybox:1.28
+          command: ["/bin/sh"]
+          args:
+            - -c
+            - |
+              while true; do
+                wget -q -O- http://frontend.hipster.svc.cluster.local/
+                sleep 0.1
+              done
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+      restartPolicy: Always
