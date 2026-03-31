@@ -64,12 +64,12 @@ spec:
         - name: MONGO_INITDB_ROOT_USERNAME
           valueFrom:
             secretKeyRef:
-              name: mongo-secret
+              name: mongodb-root
               key: MONGO_ROOT_USERNAME
         - name: MONGO_INITDB_ROOT_PASSWORD
           valueFrom:
             secretKeyRef:
-              name: mongo-secret
+              name: mongodb-root
               key: MONGO_ROOT_PASSWORD
         - name: MONGO_INITDB_DATABASE
           value: "shopdb"
