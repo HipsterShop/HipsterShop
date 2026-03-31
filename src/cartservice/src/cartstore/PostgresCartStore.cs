@@ -1,9 +1,9 @@
 using System;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
-using Grpc.Core;
-using Google.Protobuf;
 using Npgsql;
+using cartservice.models;
 
 namespace cartservice.cartstore
 {
@@ -25,7 +25,7 @@ namespace cartservice.cartstore
                 using var conn = new NpgsqlConnection(_connectionString);
                 await conn.OpenAsync();
 
-                Hipstershop.Cart cart = new Hipstershop.Cart { UserId = userId };
+                Cart cart = new Cart { UserId = userId };
                 
                 using (var cmd = new NpgsqlCommand("SELECT cart_data FROM carts WHERE user_id = @userId", conn))
                 {
@@ -33,33 +33,34 @@ namespace cartservice.cartstore
                     using var reader = await cmd.ExecuteReaderAsync();
                     if (await reader.ReadAsync())
                     {
-                        var bytes = (byte[])reader["cart_data"];
-                        cart = Hipstershop.Cart.Parser.ParseFrom(bytes);
+                        var json = reader.GetString(0);
+                        cart = JsonSerializer.Deserialize<Cart>(json) ?? new Cart { UserId = userId };
                     }
                 }
 
                 var existingItem = cart.Items.SingleOrDefault(i => i.ProductId == productId);
                 if (existingItem == null)
                 {
-                    cart.Items.Add(new Hipstershop.CartItem { ProductId = productId, Quantity = quantity });
+                    cart.Items.Add(new CartItem { ProductId = productId, Quantity = quantity });
                 }
                 else
                 {
                     existingItem.Quantity += quantity;
                 }
 
+                var cartJson = JsonSerializer.Serialize(cart);
                 using (var cmd = new NpgsqlCommand(@"
-                    INSERT INTO carts (user_id, cart_data) VALUES (@userId, @cartData)
+                    INSERT INTO carts (user_id, cart_data) VALUES (@userId, @cartData::bytea)
                     ON CONFLICT (user_id) DO UPDATE SET cart_data = EXCLUDED.cart_data", conn))
                 {
                     cmd.Parameters.AddWithValue("userId", userId);
-                    cmd.Parameters.AddWithValue("cartData", cart.ToByteArray());
+                    cmd.Parameters.AddWithValue("cartData", System.Text.Encoding.UTF8.GetBytes(cartJson));
                     await cmd.ExecuteNonQueryAsync();
                 }
             }
             catch (Exception ex)
             {
-                throw new RpcException(new Status(StatusCode.FailedPrecondition, $"Can't access cart storage. {ex}"));
+                throw new Exception($"Can't access cart storage. {ex}");
             }
         }
 
@@ -76,11 +77,11 @@ namespace cartservice.cartstore
             }
             catch (Exception ex)
             {
-                throw new RpcException(new Status(StatusCode.FailedPrecondition, $"Can't access cart storage. {ex}"));
+                throw new Exception($"Can't access cart storage. {ex}");
             }
         }
 
-        public async Task<Hipstershop.Cart> GetCartAsync(string userId)
+        public async Task<Cart> GetCartAsync(string userId)
         {
             Console.WriteLine($"GetCartAsync called with userId={userId}");
             try
@@ -93,13 +94,14 @@ namespace cartservice.cartstore
                 if (await reader.ReadAsync())
                 {
                     var bytes = (byte[])reader["cart_data"];
-                    return Hipstershop.Cart.Parser.ParseFrom(bytes);
+                    var json = System.Text.Encoding.UTF8.GetString(bytes);
+                    return JsonSerializer.Deserialize<Cart>(json) ?? new Cart { UserId = userId };
                 }
-                return new Hipstershop.Cart { UserId = userId };
+                return new Cart { UserId = userId };
             }
             catch (Exception ex)
             {
-                throw new RpcException(new Status(StatusCode.FailedPrecondition, $"Can't access cart storage. {ex}"));
+                throw new Exception($"Can't access cart storage. {ex}");
             }
         }
 

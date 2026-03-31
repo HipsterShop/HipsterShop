@@ -1,0 +1,25 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  namespace: hipster
+  name: cart-route
+  
+  labels:
+    app: cartservice
+spec:
+  parentRefs:
+    - name: hipstershop-gateway
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /api/cart
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /cart
+      backendRefs:
+        - name: cartservice
+          port: 7070

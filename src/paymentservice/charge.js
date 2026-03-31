@@ -46,8 +46,8 @@ class ExpiredCreditCard extends CreditCardError {
  * @return transaction_id - a random uuid.
  */
 module.exports = function charge (request) {
-  const { amount, credit_card: creditCard } = request;
-  const cardNumber = creditCard.credit_card_number;
+  const { amount, creditCard } = request;
+  const cardNumber = creditCard.creditCardNumber;
   const cardInfo = cardValidator(cardNumber);
   const {
     card_type: cardType,
@@ -60,11 +60,11 @@ module.exports = function charge (request) {
 
   const currentMonth = new Date().getMonth() + 1;
   const currentYear = new Date().getFullYear();
-  const { credit_card_expiration_year: year, credit_card_expiration_month: month } = creditCard;
+  const { creditCardExpirationYear: year, creditCardExpirationMonth: month } = creditCard;
   if ((currentYear * 12 + currentMonth) > (year * 12 + month)) { throw new ExpiredCreditCard(cardNumber.replace('-', ''), month, year); }
 
   logger.info(`Transaction processed: ${cardType} ending ${cardNumber.substr(-4)} \
-    Amount: ${amount.currency_code}${amount.units}.${amount.nanos}`);
+    Amount: ${amount.currencyCode}${amount.units}.${amount.nanos}`);
 
-  return { transaction_id: uuidv4() };
+  return { transactionId: uuidv4() };
 };

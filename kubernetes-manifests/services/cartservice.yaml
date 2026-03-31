@@ -1,0 +1,118 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: hipster
+  name: cartservice
+  labels:
+    app: cartservice
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: cartservice
+  template:
+    metadata:
+      labels:
+        app: cartservice
+    spec:
+      terminationGracePeriodSeconds: 5
+      initContainers:
+      - name: wait-for-cart-mongo-auth
+        image: mongo:7.0
+        envFrom:
+        - configMapRef:
+            name: hipster-config
+        env:
+        - name: MONGO_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-users
+              key: CART_MONGO_USERNAME
+        - name: MONGO_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-users
+              key: CART_MONGO_PASSWORD
+        command:
+        - bash
+        - -c
+        - |
+          set -e
+          echo "Waiting for cart Mongo auth to become ready..."
+          until mongosh "mongodb://$MONGO_USERNAME:$MONGO_PASSWORD@mongodb-0.mongo-headless.hipster.svc.cluster.local:27017,mongodb-1.mongo-headless.hipster.svc.cluster.local:27017,mongodb-2.mongo-headless.hipster.svc.cluster.local:27017/cart_db?replicaSet=rs0&authSource=cart_db&authMechanism=SCRAM-SHA-256" --quiet --eval "db.adminCommand('ping').ok" | grep -q 1; do
+            echo "Cart Mongo auth not ready yet. Retrying in 3s..."
+            sleep 3
+          done
+          echo "Cart Mongo auth ready."
+      containers:
+      - name: server
+        image: cazzzzz/trf-cartservice-hipster:v1
+        ports:
+        - containerPort: 7070
+        envFrom:
+        - configMapRef:
+            name: hipster-config
+        env:
+        - name: OTEL_SDK_DISABLED
+          value: "true"
+        - name: DISABLE_TRACING
+          value: "1"
+        - name: ASPNETCORE_HTTP_PORTS
+          value: "7070"
+        - name: MONGO_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-users
+              key: CART_MONGO_USERNAME
+        - name: MONGO_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-users
+              key: CART_MONGO_PASSWORD
+        - name: MONGO_DATABASE
+          valueFrom:
+            configMapKeyRef:
+              name: mongodb-config
+              key: CART_DB_NAME
+        - name: MONGO_URI
+          value: "mongodb://$(MONGO_USERNAME):$(MONGO_PASSWORD)@mongodb-0.mongo-headless.hipster.svc.cluster.local:27017,mongodb-1.mongo-headless.hipster.svc.cluster.local:27017,mongodb-2.mongo-headless.hipster.svc.cluster.local:27017/cart_db?replicaSet=rs0&authSource=cart_db&authMechanism=SCRAM-SHA-256"
+        resources:
+          requests:
+            cpu: 200m
+            memory: 256Mi
+          limits:
+            cpu: 300m
+            memory: 512Mi
+        readinessProbe:
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          failureThreshold: 6
+          tcpSocket:
+            port: 7070
+        livenessProbe:
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          failureThreshold: 6
+          tcpSocket:
+            port: 7070
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: hipster
+  name: cartservice
+  labels:
+    app: cartservice
+spec:
+  type: ClusterIP
+  selector:
+    app: cartservice
+  ports:
+  - name: http
+    port: 7070
+    targetPort: 7070

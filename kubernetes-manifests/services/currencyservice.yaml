@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: hipster
+  name: currencyservice
+  labels:
+    app: currencyservice
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: currencyservice
+  template:
+    metadata:
+      labels:
+        app: currencyservice
+    spec:
+      terminationGracePeriodSeconds: 5
+      containers:
+      - name: server
+        image: cazzzzz/trf-currencyservice-hipster:latest
+        ports:
+        - name: http
+          containerPort: 7000
+        envFrom:
+        - configMapRef:
+            name: hipster-config
+        env:
+        - name: PORT
+          valueFrom:
+            configMapKeyRef:
+              name: service-ports
+              key: CURRENCYSERVICE_PORT
+        - name: DISABLE_PROFILER
+          valueFrom:
+            configMapKeyRef:
+              name: app-features
+              key: CURRENCY_SERVICE_RANDOM_ERROR
+        readinessProbe:
+          httpGet:
+            path: "/_healthz"
+            port: 7000
+        livenessProbe:
+          httpGet:
+            path: "/_healthz"
+            port: 7000
+        resources:
+          requests:
+            cpu: 100m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: hipster
+  name: currencyservice
+  labels:
+    app: currencyservice
+spec:
+  type: ClusterIP
+  selector:
+    app: currencyservice
+  ports:
+  - name: http
+    port: 7000
+    targetPort: 7000

@@ -1,0 +1,444 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: hipster
+  name: mongo-headless
+  labels:
+    app: mongodb
+spec:
+  clusterIP: None
+  selector:
+    app: mongodb
+  ports:
+  - name: mongo
+    port: 27017
+    targetPort: 27017
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: hipster
+  name: mongodb
+  labels:
+    app: mongodb
+spec:
+  type: ClusterIP
+  selector:
+    app: mongodb
+  ports:
+  - name: mongo
+    port: 27017
+    targetPort: 27017
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  namespace: hipster
+  name: mongodb
+  labels:
+    app: mongodb
+spec:
+  serviceName: mongo-headless
+  replicas: 3
+  selector:
+    matchLabels:
+      app: mongodb
+  template:
+    metadata:
+      labels:
+        app: mongodb
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+      - name: mongodb
+        image: mongo:7.0
+        # Start with replica set name rs0, bind on all interfaces
+        command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+        ports:
+        - containerPort: 27017
+          name: mongo
+        env:
+        - name: MONGO_INITDB_ROOT_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-root
+              key: MONGO_ROOT_USERNAME
+        - name: MONGO_INITDB_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-root
+              key: MONGO_ROOT_PASSWORD
+        - name: MONGO_INITDB_DATABASE
+          value: "shopdb"
+        volumeMounts:
+        - name: mongo-data
+          mountPath: /data/db
+        readinessProbe:
+          exec:
+            command:
+            - mongosh
+            - --eval
+            - "db.adminCommand('ping')"
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          timeoutSeconds: 5
+        livenessProbe:
+          exec:
+            command:
+            - mongosh
+            - --eval
+            - "db.adminCommand('ping')"
+          initialDelaySeconds: 30
+          periodSeconds: 20
+          timeoutSeconds: 5
+        resources:
+          requests:
+            cpu: 200m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+  volumeClaimTemplates:
+  - metadata:
+      name: mongo-data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      storageClassName: "nfs"
+      resources:
+        requests:
+          storage: 5Gi
+
+---
+# One-time Job to bootstrap the MongoDB Replica Set AND create the admin user.
+# Since we use `command` (bypassing Docker entrypoint), no users exist yet.
+# We connect without auth, init the replica set, then create the root user.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  namespace: hipster
+  name: mongo-init-replicaset
+spec:
+  backoffLimit: 10
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: mongo-init
+        image: mongo:7.0
+        env:
+        - name: MONGO_ROOT_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-root
+              key: MONGO_ROOT_USERNAME
+        - name: MONGO_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-root
+              key: MONGO_ROOT_PASSWORD
+        - name: AUTH_MONGO_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-users
+              key: AUTH_MONGO_USERNAME
+        - name: AUTH_MONGO_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-users
+              key: AUTH_MONGO_PASSWORD
+        - name: CART_MONGO_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-users
+              key: CART_MONGO_USERNAME
+        - name: CART_MONGO_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-users
+              key: CART_MONGO_PASSWORD
+        - name: CATALOG_MONGO_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-users
+              key: CATALOG_MONGO_USERNAME
+        - name: CATALOG_MONGO_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-users
+              key: CATALOG_MONGO_PASSWORD
+        - name: ORDER_MONGO_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-users
+              key: ORDER_MONGO_USERNAME
+        - name: ORDER_MONGO_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-users
+              key: ORDER_MONGO_PASSWORD
+        - name: PAYMENT_MONGO_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-users
+              key: PAYMENT_MONGO_USERNAME
+        - name: PAYMENT_MONGO_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-users
+              key: PAYMENT_MONGO_PASSWORD
+        - name: NOTIFICATION_MONGO_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-users
+              key: NOTIFICATION_MONGO_USERNAME
+        - name: NOTIFICATION_MONGO_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-users
+              key: NOTIFICATION_MONGO_PASSWORD
+        - name: ANALYTICS_MONGO_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-users
+              key: ANALYTICS_MONGO_USERNAME
+        - name: ANALYTICS_MONGO_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-users
+              key: ANALYTICS_MONGO_PASSWORD
+        command:
+        - bash
+        - -c
+        - |
+          set -e
+
+          echo "Waiting for mongodb-0..."
+          until mongosh --host mongodb-0.mongo-headless.hipster.svc.cluster.local:27017 --eval "db.adminCommand('ping')" > /dev/null 2>&1; do
+            sleep 3
+          done
+          echo "mongodb-0 ready."
+
+          echo "Waiting for mongodb-1..."
+          until mongosh --host mongodb-1.mongo-headless.hipster.svc.cluster.local:27017 --eval "db.adminCommand('ping')" > /dev/null 2>&1; do
+            sleep 3
+          done
+          echo "mongodb-1 ready."
+
+          echo "Waiting for mongodb-2..."
+          until mongosh --host mongodb-2.mongo-headless.hipster.svc.cluster.local:27017 --eval "db.adminCommand('ping')" > /dev/null 2>&1; do
+            sleep 3
+          done
+          echo "mongodb-2 ready."
+
+          echo "All MongoDB pods ready. Initiating replica set..."
+          mongosh --host mongodb-0.mongo-headless.hipster.svc.cluster.local:27017 --eval "
+            try {
+              var status = rs.status();
+              if (status.ok === 1) {
+                print('Replica set already initialized. Skipping rs.initiate().');
+              }
+            } catch (e) {
+              print('Replica set not initialized yet. Proceeding with rs.initiate().');
+              try {
+                rs.initiate({
+                  _id: 'rs0',
+                  members: [
+                    { _id: 0, host: 'mongodb-0.mongo-headless.hipster.svc.cluster.local:27017', priority: 2 },
+                    { _id: 1, host: 'mongodb-1.mongo-headless.hipster.svc.cluster.local:27017', priority: 1 },
+                    { _id: 2, host: 'mongodb-2.mongo-headless.hipster.svc.cluster.local:27017', priority: 1 }
+                  ]
+                });
+                print('Replica set initiated successfully.');
+              } catch (initErr) {
+                var msg = (initErr && initErr.message) ? initErr.message : '';
+                if (msg.indexOf('already initialized') >= 0) {
+                  print('Replica set already initialized by another actor. Continuing.');
+                } else {
+                  throw initErr;
+                }
+              }
+            }
+          "
+
+          echo "Waiting for primary election..."
+          until mongosh --host mongodb-0.mongo-headless.hipster.svc.cluster.local:27017 --eval "
+            var status = rs.status();
+            var hasPrimary = status.members && status.members.some(function(m) { return m.stateStr === 'PRIMARY'; });
+            if (!hasPrimary) { quit(1); }
+            print('Primary elected.');
+          " > /dev/null 2>&1; do
+            echo "  waiting for primary..."
+            sleep 3
+          done
+
+          echo "Creating admin user..."
+          mongosh --host mongodb-0.mongo-headless.hipster.svc.cluster.local:27017 --eval "
+            var adminDb = db.getSiblingDB('admin');
+            var existingUser = adminDb.getUser('$MONGO_ROOT_USERNAME');
+            if (existingUser) {
+              print('Admin user already exists. Skipping.');
+            } else {
+              adminDb.createUser({
+                user: '$MONGO_ROOT_USERNAME',
+                pwd: '$MONGO_ROOT_PASSWORD',
+                roles: [{ role: 'root', db: 'admin' }]
+              });
+              print('Admin user created successfully.');
+            }
+          "
+
+          echo "Creating application database users..."
+          mongosh --host mongodb-0.mongo-headless.hipster.svc.cluster.local:27017 --authenticationDatabase admin -u "$MONGO_ROOT_USERNAME" -p "$MONGO_ROOT_PASSWORD" --eval "
+            function ensureDbUser(dbName, userName, password) {
+              var targetDb = db.getSiblingDB(dbName);
+              var existingUser = targetDb.getUser(userName);
+              if (existingUser) {
+                print('User already exists for ' + dbName + ': ' + userName);
+                return;
+              }
+              targetDb.createUser({
+                user: userName,
+                pwd: password,
+                roles: [{ role: 'readWrite', db: dbName }]
+              });
+              print('Created user for ' + dbName + ': ' + userName);
+            }
+
+            ensureDbUser('auth_db', '$AUTH_MONGO_USERNAME', '$AUTH_MONGO_PASSWORD');
+            ensureDbUser('cart_db', '$CART_MONGO_USERNAME', '$CART_MONGO_PASSWORD');
+            ensureDbUser('catalog_db', '$CATALOG_MONGO_USERNAME', '$CATALOG_MONGO_PASSWORD');
+            ensureDbUser('order_db', '$ORDER_MONGO_USERNAME', '$ORDER_MONGO_PASSWORD');
+            ensureDbUser('payment_db', '$PAYMENT_MONGO_USERNAME', '$PAYMENT_MONGO_PASSWORD');
+            ensureDbUser('notification_db', '$NOTIFICATION_MONGO_USERNAME', '$NOTIFICATION_MONGO_PASSWORD');
+            ensureDbUser('analytics_db', '$ANALYTICS_MONGO_USERNAME', '$ANALYTICS_MONGO_PASSWORD');
+          "
+
+          echo "MongoDB replica set and admin user setup complete!"
+
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  namespace: hipster
+  name: mongo-seed-products
+spec:
+  backoffLimit: 10
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: mongo-seed-products
+        image: mongo:7.0
+        env:
+        - name: MONGO_ROOT_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-root
+              key: MONGO_ROOT_USERNAME
+        - name: MONGO_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-root
+              key: MONGO_ROOT_PASSWORD
+        command:
+        - bash
+        - -c
+        - |
+          set -e
+
+          check_primary() {
+            mongosh "mongodb://$MONGO_ROOT_USERNAME:$MONGO_ROOT_PASSWORD@mongodb-0.mongo-headless.hipster.svc.cluster.local:27017,mongodb-1.mongo-headless.hipster.svc.cluster.local:27017,mongodb-2.mongo-headless.hipster.svc.cluster.local:27017/admin?replicaSet=rs0&authSource=admin" --quiet --eval "db.hello().isWritablePrimary" | grep -q true
+          }
+
+          echo "Waiting for writable MongoDB primary for catalog seed..."
+          until check_primary; do
+            echo "No writable primary yet. Retrying in 3s..."
+            sleep 3
+          done
+
+          mongosh "mongodb://$MONGO_ROOT_USERNAME:$MONGO_ROOT_PASSWORD@mongodb-0.mongo-headless.hipster.svc.cluster.local:27017,mongodb-1.mongo-headless.hipster.svc.cluster.local:27017,mongodb-2.mongo-headless.hipster.svc.cluster.local:27017/admin?replicaSet=rs0&authSource=admin" --eval '
+            var catalogDb = db.getSiblingDB("catalog_db");
+            var coll = catalogDb.getCollection("products");
+
+            coll.createIndex({ id: 1 }, { unique: true, name: "uniq_product_id" });
+            coll.createIndex({ categories: 1 }, { name: "idx_categories" });
+
+            var products = [
+              {id:"OLJCESPC7Z",name:"Sunglasses",description:"Add a modern touch to your outfits with these sleek aviator sunglasses.",picture:"/static/img/products/sunglasses.jpg",priceUsd:{currencyCode:"USD",units:NumberLong(19),nanos:NumberInt(990000000)},categories:["accessories"]},
+              {id:"66VCHSJNUP",name:"Tank Top",description:"Perfectly cropped cotton tank, with a scooped neckline.",picture:"/static/img/products/tank-top.jpg",priceUsd:{currencyCode:"USD",units:NumberLong(18),nanos:NumberInt(990000000)},categories:["clothing","tops"]},
+              {id:"1YMWWN1N4O",name:"Watch",description:"This gold-tone stainless steel watch will work with most of your outfits.",picture:"/static/img/products/watch.jpg",priceUsd:{currencyCode:"USD",units:NumberLong(109),nanos:NumberInt(990000000)},categories:["accessories"]},
+              {id:"L9ECAV7KIM",name:"Loafers",description:"A neat addition to your summer wardrobe.",picture:"/static/img/products/loafers.jpg",priceUsd:{currencyCode:"USD",units:NumberLong(89),nanos:NumberInt(990000000)},categories:["footwear"]},
+              {id:"2ZYFJ3GM2N",name:"Hairdryer",description:"This lightweight hairdryer has 3 heat and speed settings. It\x27s perfect for travel.",picture:"/static/img/products/hairdryer.jpg",priceUsd:{currencyCode:"USD",units:NumberLong(24),nanos:NumberInt(990000000)},categories:["hair","beauty"]},
+              {id:"0PUK6V6EV0",name:"Candle Holder",description:"This small but intricate candle holder is an excellent gift.",picture:"/static/img/products/candle-holder.jpg",priceUsd:{currencyCode:"USD",units:NumberLong(18),nanos:NumberInt(990000000)},categories:["decor","home"]},
+              {id:"LS4PSXUNUM",name:"Salt & Pepper Shakers",description:"Add some flavor to your kitchen.",picture:"/static/img/products/salt-and-pepper-shakers.jpg",priceUsd:{currencyCode:"USD",units:NumberLong(18),nanos:NumberInt(490000000)},categories:["kitchen"]},
+              {id:"9SIQT8TOJO",name:"Bamboo Glass Jar",description:"This bamboo glass jar can hold 57 oz (1.7 l) and is perfect for any kitchen.",picture:"/static/img/products/bamboo-glass-jar.jpg",priceUsd:{currencyCode:"USD",units:NumberLong(5),nanos:NumberInt(490000000)},categories:["kitchen"]},
+              {id:"6E92ZMYYFZ",name:"Mug",description:"A simple mug with a mustard interior.",picture:"/static/img/products/mug.jpg",priceUsd:{currencyCode:"USD",units:NumberLong(8),nanos:NumberInt(990000000)},categories:["kitchen"]}
+            ];
+
+            products.forEach(function(p) {
+              coll.updateOne({ id: p.id }, { $set: p }, { upsert: true });
+            });
+
+            print("Seed complete. Product count: " + coll.countDocuments({}));
+          '
+
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  namespace: hipster
+  name: mongo-migrate-shopdb-data
+spec:
+  backoffLimit: 10
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: mongo-migrate-shopdb-data
+        image: mongo:7.0
+        env:
+        - name: MONGO_ROOT_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-root
+              key: MONGO_ROOT_USERNAME
+        - name: MONGO_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-root
+              key: MONGO_ROOT_PASSWORD
+        command:
+        - bash
+        - -c
+        - |
+          set -e
+
+          check_primary() {
+            mongosh "mongodb://$MONGO_ROOT_USERNAME:$MONGO_ROOT_PASSWORD@mongodb-0.mongo-headless.hipster.svc.cluster.local:27017,mongodb-1.mongo-headless.hipster.svc.cluster.local:27017,mongodb-2.mongo-headless.hipster.svc.cluster.local:27017/admin?replicaSet=rs0&authSource=admin" --quiet --eval "db.hello().isWritablePrimary" | grep -q true
+          }
+
+          echo "Waiting for writable MongoDB primary for migration..."
+          until check_primary; do
+            echo "No writable primary yet. Retrying in 3s..."
+            sleep 3
+          done
+
+          mongosh "mongodb://$MONGO_ROOT_USERNAME:$MONGO_ROOT_PASSWORD@mongodb-0.mongo-headless.hipster.svc.cluster.local:27017,mongodb-1.mongo-headless.hipster.svc.cluster.local:27017,mongodb-2.mongo-headless.hipster.svc.cluster.local:27017/admin?replicaSet=rs0&authSource=admin" --eval '
+            function migrateCollection(sourceDbName, sourceCollName, targetDbName, targetCollName, keyField) {
+              var source = db.getSiblingDB(sourceDbName).getCollection(sourceCollName);
+              var target = db.getSiblingDB(targetDbName).getCollection(targetCollName);
+              var docs = source.find({}).toArray();
+              docs.forEach(function(doc) {
+                var query = {};
+                query[keyField] = doc[keyField];
+                target.updateOne(query, { $set: doc }, { upsert: true });
+              });
+              print("Migrated " + docs.length + " docs from " + sourceDbName + "." + sourceCollName + " to " + targetDbName + "." + targetCollName);
+            }
+
+            migrateCollection("shopdb", "users", "auth_db", "users", "email");
+            migrateCollection("shopdb", "carts", "cart_db", "carts", "_id");
+          '

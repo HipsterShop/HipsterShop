@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: hipster
+  name: emailservice
+  labels:
+    app: emailservice
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: emailservice
+  template:
+    metadata:
+      labels:
+        app: emailservice
+    spec:
+      terminationGracePeriodSeconds: 5
+      containers:
+      - name: server
+        image: cazzzzz/trf-emailservice-hipster:latest
+        ports:
+        - containerPort: 8080
+        envFrom:
+        - configMapRef:
+            name: hipster-config
+        env:
+        - name: PORT
+          valueFrom:
+            configMapKeyRef:
+              name: service-ports
+              key: EMAILSERVICE_PORT
+        - name: MONGO_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-users
+              key: NOTIFICATION_MONGO_USERNAME
+        - name: MONGO_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-users
+              key: NOTIFICATION_MONGO_PASSWORD
+        - name: MONGO_DATABASE
+          valueFrom:
+            configMapKeyRef:
+              name: mongodb-config
+              key: NOTIFICATION_DB_NAME
+        - name: MONGO_EMAIL_EVENTS_COLLECTION
+          valueFrom:
+            configMapKeyRef:
+              name: mongodb-config
+              key: NOTIFICATION_EMAIL_EVENTS_COLLECTION
+        - name: MONGO_URI
+          value: "mongodb://$(MONGO_USERNAME):$(MONGO_PASSWORD)@mongodb-0.mongo-headless.hipster.svc.cluster.local:27017,mongodb-1.mongo-headless.hipster.svc.cluster.local:27017,mongodb-2.mongo-headless.hipster.svc.cluster.local:27017/notification_db?replicaSet=rs0&authSource=notification_db&authMechanism=SCRAM-SHA-256"
+        readinessProbe:
+          periodSeconds: 5
+          httpGet:
+            path: "/_healthz"
+            port: 8080
+        livenessProbe:
+          periodSeconds: 5
+          httpGet:
+            path: "/_healthz"
+            port: 8080
+        resources:
+          requests:
+            cpu: 100m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: hipster
+  name: emailservice
+  labels:
+    app: emailservice
+spec:
+  type: ClusterIP
+  selector:
+    app: emailservice
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080

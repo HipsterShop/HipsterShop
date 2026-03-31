@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: hipster
+  name: shippingservice
+  labels:
+    app: shippingservice
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: shippingservice
+  template:
+    metadata:
+      labels:
+        app: shippingservice
+    spec:
+      containers:
+      - name: server
+        image: cazzzzz/trf-shippingservice-hipster:latest
+        ports:
+        - containerPort: 50051
+        envFrom:
+        - configMapRef:
+            name: hipster-config
+        env:
+        - name: PORT
+          valueFrom:
+            configMapKeyRef:
+              name: service-ports
+              key: SHIPPINGSERVICE_PORT
+        readinessProbe:
+          periodSeconds: 5
+          httpGet:
+            path: "/_healthz"
+            port: 50051
+        livenessProbe:
+          httpGet:
+            path: "/_healthz"
+            port: 50051
+        resources:
+          requests:
+            cpu: 100m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: hipster
+  name: shippingservice
+  labels:
+    app: shippingservice
+spec:
+  type: ClusterIP
+  selector:
+    app: shippingservice
+  ports:
+  - name: http
+    port: 50051
+    targetPort: 50051

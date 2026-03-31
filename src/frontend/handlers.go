@@ -24,10 +24,63 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
-	pb "github.com/GoogleCloudPlatform/microservices-demo/src/frontend/genproto"
 	"github.com/GoogleCloudPlatform/microservices-demo/src/frontend/money"
 	"github.com/GoogleCloudPlatform/microservices-demo/src/frontend/validator"
 )
+
+// JSON types matching the proto contract
+
+type Product struct {
+	Id          string                 `json:"id"`
+	Name        string                 `json:"name"`
+	Description string                 `json:"description"`
+	Picture     string                 `json:"picture"`
+	PriceUsd    *money.Money           `json:"priceUsd"`
+	Categories  []string               `json:"categories"`
+	Details     map[string]interface{} `json:"details,omitempty"`
+}
+
+type CartItem struct {
+	ProductId string `json:"productId"`
+	Quantity  int32  `json:"quantity"`
+}
+
+type Ad struct {
+	RedirectUrl string `json:"redirect_url"`
+	Text        string `json:"text"`
+}
+
+type Address struct {
+	StreetAddress string `json:"streetAddress"`
+	City          string `json:"city"`
+	State         string `json:"state"`
+	Country       string `json:"country"`
+	ZipCode       int32  `json:"zipCode"`
+}
+
+type CreditCardInfo struct {
+	CreditCardNumber          string `json:"creditCardNumber"`
+	CreditCardCvv             int32  `json:"creditCardCvv"`
+	CreditCardExpirationYear  int32  `json:"creditCardExpirationYear"`
+	CreditCardExpirationMonth int32  `json:"creditCardExpirationMonth"`
+}
+
+type OrderItem struct {
+	Item *CartItem    `json:"item"`
+	Cost *money.Money `json:"cost"`
+}
+
+type OrderResult struct {
+	OrderId            string       `json:"orderId"`
+	ShippingTrackingId string       `json:"shippingTrackingId"`
+	ShippingCost       *money.Money `json:"shippingCost"`
+	ShippingAddress    *Address     `json:"shippingAddress"`
+	Items              []*OrderItem `json:"items"`
+}
+
+type PlaceOrderResponse struct {
+	Order *OrderResult `json:"order"`
+}
 
 type platformDetails struct {
 	css      string
@@ -68,27 +121,24 @@ func (fe *frontendServer) homeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type productView struct {
-		Item  *pb.Product
-		Price *pb.Money
+		Item  *Product
+		Price *money.Money
 	}
 	ps := make([]productView, len(products))
 	for i, p := range products {
-		price, err := fe.convertCurrency(r.Context(), p.GetPriceUsd(), currentCurrency(r))
+		price, err := fe.convertCurrency(r.Context(), p.PriceUsd, currentCurrency(r))
 		if err != nil {
-			renderHTTPError(log, r, w, errors.Wrapf(err, "failed to do currency conversion for product %s", p.GetId()), http.StatusInternalServerError)
+			renderHTTPError(log, r, w, errors.Wrapf(err, "failed to do currency conversion for product %s", p.Id), http.StatusInternalServerError)
 			return
 		}
 		ps[i] = productView{p, price}
 	}
 
-	// Set ENV_PLATFORM (default to local if not set; use env var if set; otherwise detect GCP, which overrides env)_
 	var env = os.Getenv("ENV_PLATFORM")
-	// Only override from env variable if set + valid env
 	if env == "" || stringinSlice(validEnvs, env) == false {
 		fmt.Println("env platform is either empty or invalid")
 		env = "local"
 	}
-	// Autodetect GCP
 	addrs, err := net.LookupHost("metadata.google.internal.")
 	if err == nil && len(addrs) >= 0 {
 		log.Debugf("Detected Google metadata server: %v, setting ENV_PLATFORM to GCP.", addrs)
@@ -104,7 +154,7 @@ func (fe *frontendServer) homeHandler(w http.ResponseWriter, r *http.Request) {
 		"currencies":    currencies,
 		"products":      ps,
 		"cart_size":     cartSize(cart),
-		"banner_color":  os.Getenv("BANNER_COLOR"), // illustrates canary deployments
+		"banner_color":  os.Getenv("BANNER_COLOR"),
 		"ad":            fe.chooseAd(r.Context(), []string{}, log),
 	})); err != nil {
 		log.Error(err)
@@ -160,25 +210,22 @@ func (fe *frontendServer) productHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	price, err := fe.convertCurrency(r.Context(), p.GetPriceUsd(), currentCurrency(r))
+	price, err := fe.convertCurrency(r.Context(), p.PriceUsd, currentCurrency(r))
 	if err != nil {
 		renderHTTPError(log, r, w, errors.Wrap(err, "failed to convert currency"), http.StatusInternalServerError)
 		return
 	}
 
-	// ignores the error retrieving recommendations since it is not critical
 	recommendations, err := fe.getRecommendations(r.Context(), sessionID(r), []string{id})
 	if err != nil {
 		log.WithField("error", err).Warn("failed to get product recommendations")
 	}
 
 	product := struct {
-		Item  *pb.Product
-		Price *pb.Money
+		Item  *Product
+		Price *money.Money
 	}{p, price}
 
-	// Fetch packaging info (weight/dimensions) of the product
-	// The packaging service is an optional microservice you can run as part of a Google Cloud demo.
 	var packagingInfo *PackagingInfo = nil
 	if isPackagingServiceConfigured() {
 		packagingInfo, err = httpGetPackagingInfo(id)
@@ -202,6 +249,11 @@ func (fe *frontendServer) productHandler(w http.ResponseWriter, r *http.Request)
 
 func (fe *frontendServer) addToCartHandler(w http.ResponseWriter, r *http.Request) {
 	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
+	userID := authenticatedUserID(r)
+	if userID == "" {
+		renderHTTPError(log, r, w, errors.New("authentication required"), http.StatusUnauthorized)
+		return
+	}
 	quantity, _ := strconv.ParseUint(r.FormValue("quantity"), 10, 32)
 	productID := r.FormValue("product_id")
 	payload := validator.AddToCartPayload{
@@ -220,7 +272,7 @@ func (fe *frontendServer) addToCartHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	if err := fe.insertCart(r.Context(), sessionID(r), p.GetId(), int32(payload.Quantity)); err != nil {
+	if err := fe.insertCart(r.Context(), userID, p.Id, int32(payload.Quantity)); err != nil {
 		renderHTTPError(log, r, w, errors.Wrap(err, "failed to add to cart"), http.StatusInternalServerError)
 		return
 	}
@@ -230,9 +282,14 @@ func (fe *frontendServer) addToCartHandler(w http.ResponseWriter, r *http.Reques
 
 func (fe *frontendServer) emptyCartHandler(w http.ResponseWriter, r *http.Request) {
 	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
+	userID := authenticatedUserID(r)
+	if userID == "" {
+		renderHTTPError(log, r, w, errors.New("authentication required"), http.StatusUnauthorized)
+		return
+	}
 	log.Debug("emptying cart")
 
-	if err := fe.emptyCart(r.Context(), sessionID(r)); err != nil {
+	if err := fe.emptyCart(r.Context(), userID); err != nil {
 		renderHTTPError(log, r, w, errors.Wrap(err, "failed to empty cart"), http.StatusInternalServerError)
 		return
 	}
@@ -242,20 +299,24 @@ func (fe *frontendServer) emptyCartHandler(w http.ResponseWriter, r *http.Reques
 
 func (fe *frontendServer) viewCartHandler(w http.ResponseWriter, r *http.Request) {
 	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
+	userID := authenticatedUserID(r)
+	if userID == "" {
+		renderHTTPError(log, r, w, errors.New("authentication required"), http.StatusUnauthorized)
+		return
+	}
 	log.Debug("view user cart")
 	currencies, err := fe.getCurrencies(r.Context())
 	if err != nil {
 		renderHTTPError(log, r, w, errors.Wrap(err, "could not retrieve currencies"), http.StatusInternalServerError)
 		return
 	}
-	cart, err := fe.getCart(r.Context(), sessionID(r))
+	cart, err := fe.getCart(r.Context(), userID)
 	if err != nil {
 		renderHTTPError(log, r, w, errors.Wrap(err, "could not retrieve cart"), http.StatusInternalServerError)
 		return
 	}
 
-	// ignores the error retrieving recommendations since it is not critical
-	recommendations, err := fe.getRecommendations(r.Context(), sessionID(r), cartIDs(cart))
+	recommendations, err := fe.getRecommendations(r.Context(), userID, cartIDs(cart))
 	if err != nil {
 		log.WithField("error", err).Warn("failed to get product recommendations")
 	}
@@ -267,28 +328,28 @@ func (fe *frontendServer) viewCartHandler(w http.ResponseWriter, r *http.Request
 	}
 
 	type cartItemView struct {
-		Item     *pb.Product
+		Item     *Product
 		Quantity int32
-		Price    *pb.Money
+		Price    *money.Money
 	}
 	items := make([]cartItemView, len(cart))
-	totalPrice := pb.Money{CurrencyCode: currentCurrency(r)}
+	totalPrice := money.Money{CurrencyCode: currentCurrency(r)}
 	for i, item := range cart {
-		p, err := fe.getProduct(r.Context(), item.GetProductId())
+		p, err := fe.getProduct(r.Context(), item.ProductId)
 		if err != nil {
-			renderHTTPError(log, r, w, errors.Wrapf(err, "could not retrieve product #%s", item.GetProductId()), http.StatusInternalServerError)
+			renderHTTPError(log, r, w, errors.Wrapf(err, "could not retrieve product #%s", item.ProductId), http.StatusInternalServerError)
 			return
 		}
-		price, err := fe.convertCurrency(r.Context(), p.GetPriceUsd(), currentCurrency(r))
+		price, err := fe.convertCurrency(r.Context(), p.PriceUsd, currentCurrency(r))
 		if err != nil {
-			renderHTTPError(log, r, w, errors.Wrapf(err, "could not convert currency for product #%s", item.GetProductId()), http.StatusInternalServerError)
+			renderHTTPError(log, r, w, errors.Wrapf(err, "could not convert currency for product #%s", item.ProductId), http.StatusInternalServerError)
 			return
 		}
 
-		multPrice := money.MultiplySlow(*price, uint32(item.GetQuantity()))
+		multPrice := money.MultiplySlow(*price, uint32(item.Quantity))
 		items[i] = cartItemView{
 			Item:     p,
-			Quantity: item.GetQuantity(),
+			Quantity: item.Quantity,
 			Price:    &multPrice}
 		totalPrice = money.Must(money.Sum(totalPrice, multPrice))
 	}
@@ -311,6 +372,11 @@ func (fe *frontendServer) viewCartHandler(w http.ResponseWriter, r *http.Request
 
 func (fe *frontendServer) placeOrderHandler(w http.ResponseWriter, r *http.Request) {
 	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
+	userID := authenticatedUserID(r)
+	if userID == "" {
+		renderHTTPError(log, r, w, errors.New("authentication required"), http.StatusUnauthorized)
+		return
+	}
 	log.Debug("placing order")
 
 	var (
@@ -343,35 +409,38 @@ func (fe *frontendServer) placeOrderHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	order, err := pb.NewCheckoutServiceClient(fe.checkoutSvcConn).
-		PlaceOrder(r.Context(), &pb.PlaceOrderRequest{
-			Email: payload.Email,
-			CreditCard: &pb.CreditCardInfo{
-				CreditCardNumber:          payload.CcNumber,
-				CreditCardExpirationMonth: int32(payload.CcMonth),
-				CreditCardExpirationYear:  int32(payload.CcYear),
-				CreditCardCvv:             int32(payload.CcCVV)},
-			UserId:       sessionID(r),
-			UserCurrency: currentCurrency(r),
-			Address: &pb.Address{
-				StreetAddress: payload.StreetAddress,
-				City:          payload.City,
-				State:         payload.State,
-				ZipCode:       int32(payload.ZipCode),
-				Country:       payload.Country},
-		})
-	if err != nil {
+	// Call checkout service via REST
+	checkoutReq := map[string]interface{}{
+		"email": payload.Email,
+		"creditCard": map[string]interface{}{
+			"creditCardNumber":          payload.CcNumber,
+			"creditCardExpirationMonth": int32(payload.CcMonth),
+			"creditCardExpirationYear":  int32(payload.CcYear),
+			"creditCardCvv":             int32(payload.CcCVV),
+		},
+		"userId":       userID,
+		"userCurrency": currentCurrency(r),
+		"address": map[string]interface{}{
+			"streetAddress": payload.StreetAddress,
+			"city":          payload.City,
+			"state":         payload.State,
+			"zipCode":       int32(payload.ZipCode),
+			"country":       payload.Country,
+		},
+	}
+
+	var order PlaceOrderResponse
+	if err := postJSON(fmt.Sprintf("http://%s/api/checkout", fe.gatewaySvcAddr), checkoutReq, &order); err != nil {
 		renderHTTPError(log, r, w, errors.Wrap(err, "failed to complete the order"), http.StatusInternalServerError)
 		return
 	}
-	log.WithField("order", order.GetOrder().GetOrderId()).Info("order placed")
+	log.WithField("order", order.Order.OrderId).Info("order placed")
 
-	order.GetOrder().GetItems()
-	recommendations, _ := fe.getRecommendations(r.Context(), sessionID(r), nil)
+	recommendations, _ := fe.getRecommendations(r.Context(), userID, nil)
 
-	totalPaid := *order.GetOrder().GetShippingCost()
-	for _, v := range order.GetOrder().GetItems() {
-		multPrice := money.MultiplySlow(*v.GetCost(), uint32(v.GetItem().GetQuantity()))
+	totalPaid := *order.Order.ShippingCost
+	for _, v := range order.Order.Items {
+		multPrice := money.MultiplySlow(*v.Cost, uint32(v.Item.Quantity))
 		totalPaid = money.Must(money.Sum(totalPaid, multPrice))
 	}
 
@@ -384,11 +453,101 @@ func (fe *frontendServer) placeOrderHandler(w http.ResponseWriter, r *http.Reque
 	if err := templates.ExecuteTemplate(w, "order", injectCommonTemplateData(r, map[string]interface{}{
 		"show_currency":   false,
 		"currencies":      currencies,
-		"order":           order.GetOrder(),
+		"order":           order.Order,
 		"total_paid":      &totalPaid,
 		"recommendations": recommendations,
 	})); err != nil {
 		log.Println(err)
+	}
+}
+
+func (fe *frontendServer) loginHandler(w http.ResponseWriter, r *http.Request) {
+	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
+	if isAuthenticated(r) {
+		w.Header().Set("Location", baseUrl+"/")
+		w.WriteHeader(http.StatusFound)
+		return
+	}
+	if err := templates.ExecuteTemplate(w, "login.html", injectCommonTemplateData(r, map[string]interface{}{})); err != nil {
+		log.Println(err)
+	}
+}
+
+func (fe *frontendServer) loginPostHandler(w http.ResponseWriter, r *http.Request) {
+	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
+	email := strings.TrimSpace(r.FormValue("email"))
+	password := r.FormValue("password")
+
+	if email == "" || password == "" {
+		if err := templates.ExecuteTemplate(w, "login.html", injectCommonTemplateData(r, map[string]interface{}{
+			"error": "Email and password are required",
+		})); err != nil {
+			log.Println(err)
+		}
+		return
+	}
+
+	authCookies, err := fe.authLogin(r.Context(), email, password)
+	if err != nil {
+		if err := templates.ExecuteTemplate(w, "login.html", injectCommonTemplateData(r, map[string]interface{}{
+			"error": err.Error(),
+		})); err != nil {
+			log.Println(err)
+		}
+		return
+	}
+	forwardAuthTokenCookie(w, authCookies)
+	w.Header().Set("Location", baseUrl+"/cart")
+	w.WriteHeader(http.StatusFound)
+}
+
+func (fe *frontendServer) signupHandler(w http.ResponseWriter, r *http.Request) {
+	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
+	if isAuthenticated(r) {
+		w.Header().Set("Location", baseUrl+"/")
+		w.WriteHeader(http.StatusFound)
+		return
+	}
+	if err := templates.ExecuteTemplate(w, "signup.html", injectCommonTemplateData(r, map[string]interface{}{})); err != nil {
+		log.Println(err)
+	}
+}
+
+func (fe *frontendServer) signupPostHandler(w http.ResponseWriter, r *http.Request) {
+	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
+	name := strings.TrimSpace(r.FormValue("name"))
+	email := strings.TrimSpace(r.FormValue("email"))
+	password := r.FormValue("password")
+
+	if email == "" || password == "" {
+		if err := templates.ExecuteTemplate(w, "signup.html", injectCommonTemplateData(r, map[string]interface{}{
+			"error": "Email and password are required",
+		})); err != nil {
+			log.Println(err)
+		}
+		return
+	}
+
+	authCookies, err := fe.authSignup(r.Context(), name, email, password)
+	if err != nil {
+		if err := templates.ExecuteTemplate(w, "signup.html", injectCommonTemplateData(r, map[string]interface{}{
+			"error": err.Error(),
+		})); err != nil {
+			log.Println(err)
+		}
+		return
+	}
+	forwardAuthTokenCookie(w, authCookies)
+	w.Header().Set("Location", baseUrl+"/cart")
+	w.WriteHeader(http.StatusFound)
+}
+
+func forwardAuthTokenCookie(w http.ResponseWriter, cookies []*http.Cookie) {
+	for _, cookie := range cookies {
+		if cookie.Name == "auth_token" {
+			http.SetCookie(w, cookie)
+			return
+		}
 	}
 }
 
@@ -457,7 +616,7 @@ func (fe *frontendServer) setCurrencyHandler(w http.ResponseWriter, r *http.Requ
 
 // chooseAd queries for advertisements available and randomly chooses one, if
 // available. It ignores the error retrieving the ad since it is not critical.
-func (fe *frontendServer) chooseAd(ctx context.Context, ctxKeys []string, log logrus.FieldLogger) *pb.Ad {
+func (fe *frontendServer) chooseAd(ctx context.Context, ctxKeys []string, log logrus.FieldLogger) *Ad {
 	ads, err := fe.getAd(ctx, ctxKeys)
 	if err != nil {
 		log.WithField("error", err).Warn("failed to retrieve ads")
@@ -485,6 +644,8 @@ func injectCommonTemplateData(r *http.Request, payload map[string]interface{}) m
 	data := map[string]interface{}{
 		"session_id":        sessionID(r),
 		"request_id":        r.Context().Value(ctxKeyRequestID{}),
+		"is_authenticated":  isAuthenticated(r),
+		"user_email":        authenticatedUserEmail(r),
 		"user_currency":     currentCurrency(r),
 		"platform_css":      plat.css,
 		"platform_name":     plat.provider,
@@ -519,26 +680,59 @@ func sessionID(r *http.Request) string {
 	return ""
 }
 
-func cartIDs(c []*pb.CartItem) []string {
+func isAuthenticated(r *http.Request) bool {
+	v := r.Context().Value(ctxKeyAuthenticated{})
+	if v == nil {
+		return false
+	}
+	b, ok := v.(bool)
+	return ok && b
+}
+
+func authenticatedUserID(r *http.Request) string {
+	v := r.Context().Value(ctxKeyUserID{})
+	if v == nil {
+		return ""
+	}
+	userID, ok := v.(string)
+	if !ok {
+		return ""
+	}
+	return userID
+}
+
+func authenticatedUserEmail(r *http.Request) string {
+	v := r.Context().Value(ctxKeyUserEmail{})
+	if v == nil {
+		return ""
+	}
+	email, ok := v.(string)
+	if !ok {
+		return ""
+	}
+	return email
+}
+
+func cartIDs(c []*CartItem) []string {
 	out := make([]string, len(c))
 	for i, v := range c {
-		out[i] = v.GetProductId()
+		out[i] = v.ProductId
 	}
 	return out
 }
 
 // get total # of items in cart
-func cartSize(c []*pb.CartItem) int {
+func cartSize(c []*CartItem) int {
 	cartSize := 0
 	for _, item := range c {
-		cartSize += int(item.GetQuantity())
+		cartSize += int(item.Quantity)
 	}
 	return cartSize
 }
 
-func renderMoney(money pb.Money) string {
-	currencyLogo := renderCurrencyLogo(money.GetCurrencyCode())
-	return fmt.Sprintf("%s%d.%02d", currencyLogo, money.GetUnits(), money.GetNanos()/10000000)
+func renderMoney(m money.Money) string {
+	currencyLogo := renderCurrencyLogo(m.CurrencyCode)
+	return fmt.Sprintf("%s%d.%02d", currencyLogo, m.Units, m.Nanos/10000000)
 }
 
 func renderCurrencyLogo(currencyCode string) string {

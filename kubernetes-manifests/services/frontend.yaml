@@ -1,0 +1,85 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: hipster
+  name: frontend
+  labels:
+    app: frontend
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+        - name: server
+          image: cazzzzz/trf-frontend-hipster:v2
+          ports:
+          - containerPort: 8080
+          readinessProbe:
+            initialDelaySeconds: 10
+            httpGet:
+              path: "/_healthz"
+              port: 8080
+              httpHeaders:
+              - name: "Cookie"
+                value: "shop_session-id=x-readiness-probe"
+          livenessProbe:
+            initialDelaySeconds: 10
+            httpGet:
+              path: "/_healthz"
+              port: 8080
+              httpHeaders:
+              - name: "Cookie"
+                value: "shop_session-id=x-liveness-probe"
+          envFrom:
+            - configMapRef:
+                name: hipster-config
+          env:
+            - name: PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: service-ports
+                  key: FRONTEND_PORT
+            - name: GATEWAY_ADDR
+              valueFrom:
+                configMapKeyRef:
+                  name: service-addresses
+                  key: GATEWAY_ADDR
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: JWT_SECRET
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: hipster
+  name: frontend
+  labels:
+    app: frontend
+spec:
+  type: ClusterIP
+  selector:
+    app: frontend
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080

@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: assistantservice
+  namespace: hipster
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: assistantservice
+  template:
+    metadata:
+      labels:
+        app: assistantservice
+    spec:
+      containers:
+      - name: server
+        image: cazzzzz/trf-assistantservice-hipster:latest
+        ports:
+        - containerPort: 8080
+        envFrom:
+        - configMapRef:
+            name: hipster-config
+        env:
+        - name: GATEWAY_ADDR
+          valueFrom:
+            configMapKeyRef:
+              name: service-addresses
+              key: GATEWAY_ADDR
+        - name: GEMINI_MODEL
+          valueFrom:
+            configMapKeyRef:
+              name: app-features
+              key: GEMINI_MODEL
+        - name: GEMINI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: GEMINI_API_KEY
+        resources:
+          requests:
+            cpu: 100m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 128Mi
+        readinessProbe:
+          httpGet:
+            path: /_healthz
+            port: 8080
+        livenessProbe:
+          httpGet:
+            path: /_healthz
+            port: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: assistantservice
+  namespace: hipster
+spec:
+  type: ClusterIP
+  selector:
+    app: assistantservice
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080

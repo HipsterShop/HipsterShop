@@ -1,13 +1,37 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
+namespace: hipster
 resources:
- - adservice.yaml
- - cartservice.yaml
- - checkoutservice.yaml
- - currencyservice.yaml
- - emailservice.yaml
- - frontend.yaml
- - paymentservice.yaml
- - productcatalogservice.yaml
- - recommendationservice.yaml
- - shippingservice.yaml
+ - base/namespace.yaml
+ - base/secrets.yaml
+ - base/configmaps.yaml
+ - database/secrets.yaml
+
+ - database/mongodb.yaml
+ - services/adservice.yaml
+ - services/authservice.yaml
+ - services/assistantservice.yaml
+ - services/cartservice.yaml
+ - services/checkoutservice.yaml
+ - services/currencyservice.yaml
+ - services/emailservice.yaml
+ - services/frontend.yaml
+ - services/paymentservice.yaml
+ - services/productcatalogservice.yaml
+ - services/recommendationservice.yaml
+ - services/shippingservice.yaml
+ - gateway/hipstershop-gateway.yaml
+ - gateway/kgateway.yaml
+ - gateway/route-ad-route.yaml
+ - gateway/route-auth-route.yaml
+ - gateway/route-cart-route.yaml
+ - gateway/route-checkout-route.yaml
+ - gateway/route-currency-route.yaml
+ - gateway/route-email-route.yaml
+ - gateway/route-frontend-route.yaml
+ - gateway/route-payment-route.yaml
+ - gateway/route-productcatalog-route.yaml
+ - gateway/route-recommendation-route.yaml
+ - gateway/route-shipping-route.yaml
+ - gateway/route-assistant-route.yaml
+ - HPA/frontend-hpa.yaml

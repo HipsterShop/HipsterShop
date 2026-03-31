@@ -196,7 +196,62 @@ header .navbar.sub-navbar nav a {
 
 header .navbar.sub-navbar .controls {
   display: flex;
+  align-items: center;
+  gap: 16px;
   height: 60px;
+}
+
+header .auth-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: 6px;
+}
+
+header .auth-email {
+  font-size: 15px;
+  color: #333333;
+  max-width: 220px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+header .auth-btn {
+  height: 40px;
+  min-width: 86px;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+}
+
+header .auth-btn-outline {
+  color: #111111;
+  border: 1px solid #9f9f9f;
+  background: #ffffff;
+}
+
+header .auth-btn-outline:hover {
+  color: #111111;
+  border-color: #7f7f7f;
+  background: #f7f7f7;
+}
+
+header .auth-btn-solid {
+  color: #ffffff;
+  border: 1px solid #2f3844;
+  background: #2f3844;
+}
+
+header .auth-btn-solid:hover {
+  color: #ffffff;
+  background: #212932;
+  border-color: #212932;
 }
 
 header .navbar.sub-navbar .controls a img {

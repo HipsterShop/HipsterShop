@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: hipster
+  name: adservice
+  labels:
+    app: adservice
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: adservice
+  template:
+    metadata:
+      labels:
+        app: adservice
+    spec:
+      terminationGracePeriodSeconds: 5
+      containers:
+      - name: server
+        image: cazzzzz/trf-adservice-hipster:latest
+        ports:
+        - containerPort: 9555
+        envFrom:
+        - configMapRef:
+            name: hipster-config
+        env:
+        - name: PORT
+          valueFrom:
+            configMapKeyRef:
+              name: service-ports
+              key: ADSERVICE_PORT
+        resources:
+          requests:
+            cpu: 200m
+            memory: 180Mi
+          limits:
+            cpu: 300m
+            memory: 512Mi
+        readinessProbe:
+          initialDelaySeconds: 60
+          periodSeconds: 15
+          httpGet:
+            path: "/_healthz"
+            port: 9555
+        livenessProbe:
+          initialDelaySeconds: 60
+          periodSeconds: 15
+          httpGet:
+            path: "/_healthz"
+            port: 9555
+        volumeMounts:
+        - mountPath: /tmp
+          name: tmp-volume
+      volumes:
+      - name: tmp-volume
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: hipster
+  name: adservice
+  labels:
+    app: adservice
+spec:
+  type: ClusterIP
+  selector:
+    app: adservice
+  ports:
+  - name: http
+    port: 9555
+    targetPort: 9555

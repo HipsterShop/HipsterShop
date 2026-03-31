@@ -8,30 +8,16 @@
 package main
 
 import (
-	"context"
-	"flag"
+	"encoding/json"
 	"fmt"
-	"net"
+	"net/http"
 	"os"
-	"os/signal"
+	"strings"
 	"sync"
-	"syscall"
 	"time"
 
-	pb "github.com/GoogleCloudPlatform/microservices-demo/src/productcatalogservice/genproto"
-	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/health"
-	healthpb "google.golang.org/grpc/health/grpc_health_v1"
-
 	"cloud.google.com/go/profiler"
-	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
-	"go.opentelemetry.io/otel/propagation"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	"google.golang.org/grpc"
 )
 
 var (
@@ -43,6 +29,36 @@ var (
 
 	reloadCatalog bool
 )
+
+// JSON data types matching the proto contract
+
+type Money struct {
+	CurrencyCode string `json:"currencyCode"`
+	Units        int64  `json:"units"`
+	Nanos        int32  `json:"nanos"`
+}
+
+type Product struct {
+	Id          string                 `json:"id"`
+	Name        string                 `json:"name"`
+	Description string                 `json:"description"`
+	Picture     string                 `json:"picture"`
+	PriceUsd    *Money                 `json:"priceUsd"`
+	Categories  []string               `json:"categories"`
+	Details     map[string]interface{} `json:"details,omitempty"`
+}
+
+type ListProductsResponse struct {
+	Products []*Product `json:"products"`
+}
+
+type SearchProductsResponse struct {
+	Results []*Product `json:"results"`
+}
+
+type productCatalog struct {
+	catalog ListProductsResponse
+}
 
 func init() {
 	log = logrus.New()
@@ -58,12 +74,11 @@ func init() {
 	catalogMutex = &sync.Mutex{}
 }
 
+var svc *productCatalog
+
 func main() {
 	if os.Getenv("ENABLE_TRACING") == "1" {
-		err := initTracing()
-		if err != nil {
-			log.Warnf("warn: failed to start tracer: %+v", err)
-		}
+		log.Info("Tracing enabled but currently unavailable in REST mode.")
 	} else {
 		log.Info("Tracing disabled.")
 	}
@@ -74,8 +89,6 @@ func main() {
 	} else {
 		log.Info("Profiling disabled.")
 	}
-
-	flag.Parse()
 
 	// set injected latency
 	if s := os.Getenv("EXTRA_LATENCY"); s != "" {
@@ -89,84 +102,102 @@ func main() {
 		extraLatency = time.Duration(0)
 	}
 
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGUSR1, syscall.SIGUSR2)
-	go func() {
-		for {
-			sig := <-sigs
-			log.Printf("Received signal: %s", sig)
-			if sig == syscall.SIGUSR1 {
-				reloadCatalog = true
-				log.Infof("Enable catalog reloading")
-			} else {
-				reloadCatalog = false
-				log.Infof("Disable catalog reloading")
-			}
-		}
-	}()
-
 	if os.Getenv("PORT") != "" {
 		port = os.Getenv("PORT")
 	}
-	log.Infof("starting grpc server at :%s", port)
-	run(port)
-	select {}
-}
 
-func run(port string) string {
-	listener, err := net.Listen("tcp", fmt.Sprintf(":%s", port))
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// Propagate trace context
-	otel.SetTextMapPropagator(
-		propagation.NewCompositeTextMapPropagator(
-			propagation.TraceContext{}, propagation.Baggage{}))
-	var srv *grpc.Server
-	srv = grpc.NewServer(
-		grpc.StatsHandler(otelgrpc.NewServerHandler()))
-
-	svc := &productCatalog{}
-	err = loadCatalog(&svc.catalog)
-	if err != nil {
+	svc = &productCatalog{}
+	if err := loadCatalog(&svc.catalog); err != nil {
 		log.Fatalf("could not parse product catalog: %v", err)
 	}
 
-	pb.RegisterProductCatalogServiceServer(srv, svc)
-	healthcheck := health.NewServer()
-	healthpb.RegisterHealthServer(srv, healthcheck)
-	go srv.Serve(listener)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/products", handleProducts)
+	mux.HandleFunc("/products/search", handleSearchProducts)
+	mux.HandleFunc("/products/", handleGetProduct)
+	mux.HandleFunc("/_healthz", handleHealthCheck)
 
-	return listener.Addr().String()
+	addr := fmt.Sprintf(":%s", port)
+	log.Infof("starting REST server at %s", addr)
+	log.Fatal(http.ListenAndServe(addr, mux))
 }
 
-func initStats() {
-	// TODO(drewbr) Implement OpenTelemetry stats
-}
-
-func initTracing() error {
-	var (
-		collectorAddr string
-		collectorConn *grpc.ClientConn
-	)
-
-	ctx := context.Background()
-
-	mustMapEnv(&collectorAddr, "COLLECTOR_SERVICE_ADDR")
-	mustConnGRPC(ctx, &collectorConn, collectorAddr)
-
-	exporter, err := otlptracegrpc.New(
-		ctx,
-		otlptracegrpc.WithGRPCConn(collectorConn))
-	if err != nil {
-		log.Warnf("warn: Failed to create trace exporter: %v", err)
+func handleProducts(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
 	}
-	tp := sdktrace.NewTracerProvider(
-		sdktrace.WithBatcher(exporter),
-		sdktrace.WithSampler(sdktrace.AlwaysSample()))
-	otel.SetTracerProvider(tp)
-	return err
+	time.Sleep(extraLatency)
+
+	resp := ListProductsResponse{Products: svc.parseCatalog()}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
+}
+
+func handleGetProduct(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	time.Sleep(extraLatency)
+
+	// Extract product ID from URL path: /products/{id}
+	id := strings.TrimPrefix(r.URL.Path, "/products/")
+	if id == "" {
+		http.Error(w, "product id not specified", http.StatusBadRequest)
+		return
+	}
+
+	var found *Product
+	for _, p := range svc.parseCatalog() {
+		if p.Id == id {
+			found = p
+			break
+		}
+	}
+
+	if found == nil {
+		http.Error(w, fmt.Sprintf("no product with ID %s", id), http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(found)
+}
+
+func handleSearchProducts(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	time.Sleep(extraLatency)
+
+	query := r.URL.Query().Get("q")
+	var results []*Product
+	for _, product := range svc.parseCatalog() {
+		if strings.Contains(strings.ToLower(product.Name), strings.ToLower(query)) ||
+			strings.Contains(strings.ToLower(product.Description), strings.ToLower(query)) {
+			results = append(results, product)
+		}
+	}
+
+	resp := SearchProductsResponse{Results: results}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
+}
+
+func handleHealthCheck(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprint(w, "ok")
+}
+
+func (p *productCatalog) parseCatalog() []*Product {
+	if reloadCatalog || len(p.catalog.Products) == 0 {
+		err := loadCatalog(&p.catalog)
+		if err != nil {
+			return []*Product{}
+		}
+	}
+	return p.catalog.Products
 }
 
 func initProfiling(service, version string) {
@@ -174,8 +205,6 @@ func initProfiling(service, version string) {
 		if err := profiler.Start(profiler.Config{
 			Service:        service,
 			ServiceVersion: version,
-			// ProjectID must be set if not running on GCP.
-			// ProjectID: "my-project",
 		}); err != nil {
 			log.Warnf("failed to start profiler: %+v", err)
 		} else {
@@ -187,24 +216,4 @@ func initProfiling(service, version string) {
 		time.Sleep(d)
 	}
 	log.Warn("could not initialize Stackdriver profiler after retrying, giving up")
-}
-
-func mustMapEnv(target *string, envKey string) {
-	v := os.Getenv(envKey)
-	if v == "" {
-		panic(fmt.Sprintf("environment variable %q not set", envKey))
-	}
-	*target = v
-}
-
-func mustConnGRPC(ctx context.Context, conn **grpc.ClientConn, addr string) {
-	var err error
-	_, cancel := context.WithTimeout(ctx, time.Second*3)
-	defer cancel()
-	*conn, err = grpc.NewClient(addr,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithStatsHandler(otelgrpc.NewClientHandler()))
-	if err != nil {
-		panic(errors.Wrapf(err, "grpc: failed to connect %s", addr))
-	}
 }

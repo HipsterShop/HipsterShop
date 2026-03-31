@@ -1,26 +1,14 @@
 
-from concurrent import futures
-import argparse
 import os
 import sys
 import time
-import grpc
 import traceback
+import json
+from datetime import datetime
+from flask import Flask, request, jsonify
 from jinja2 import Environment, FileSystemLoader, select_autoescape, TemplateError
-from google.api_core.exceptions import GoogleAPICallError
 from google.auth.exceptions import DefaultCredentialsError
-
-import demo_pb2
-import demo_pb2_grpc
-from grpc_health.v1 import health_pb2
-from grpc_health.v1 import health_pb2_grpc
-
-from opentelemetry import trace
-from opentelemetry.instrumentation.grpc import GrpcInstrumentorServer
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-
+from pymongo import MongoClient
 
 from logger import getJSONLogger
 logger = getJSONLogger('emailservice-server')
@@ -31,92 +19,64 @@ env = Environment(
 )
 template = env.get_template('confirmation.html')
 
-class BaseEmailService(demo_pb2_grpc.EmailServiceServicer):
-  def Check(self, request, context):
-    return health_pb2.HealthCheckResponse(
-      status=health_pb2.HealthCheckResponse.SERVING)
-  
-  def Watch(self, request, context):
-    return health_pb2.HealthCheckResponse(
-      status=health_pb2.HealthCheckResponse.UNIMPLEMENTED)
+mongo_client = None
+email_events_collection = None
 
-class EmailService(BaseEmailService):
-  def __init__(self):
-    raise Exception('cloud mail client not implemented')
-    super().__init__()
 
-  @staticmethod
-  def send_email(client, email_address, content):
-    response = client.send_message(
-      sender = client.sender_path(project_id, region, sender_id),
-      envelope_from_authority = '',
-      header_from_authority = '',
-      envelope_from_address = from_address,
-      simple_message = {
-        "from": {
-          "address_spec": from_address,
-        },
-        "to": [{
-          "address_spec": email_address
-        }],
-        "subject": "Your Confirmation Email",
-        "html_body": content
-      }
-    )
-    logger.info("Message sent: {}".format(response.rfc822_message_id))
+def init_mongo_store():
+  global mongo_client, email_events_collection
+  mongo_uri = os.environ.get('EMAIL_MONGO_URI') or os.environ.get('MONGO_URI')
+  if not mongo_uri:
+    logger.info('Email Mongo persistence disabled.')
+    return
 
-  def SendOrderConfirmation(self, request, context):
-    email = request.email
-    order = request.order
+  db_name = os.environ.get('MONGO_DATABASE', 'notification_db')
+  coll_name = os.environ.get('MONGO_EMAIL_EVENTS_COLLECTION', 'email_events')
 
-    try:
-      confirmation = template.render(order = order)
-    except TemplateError as err:
-      context.set_details("An error occurred when preparing the confirmation mail.")
-      logger.error(err.message)
-      context.set_code(grpc.StatusCode.INTERNAL)
-      return demo_pb2.Empty()
-
-    try:
-      EmailService.send_email(self.client, email, confirmation)
-    except GoogleAPICallError as err:
-      context.set_details("An error occurred when sending the email.")
-      print(err.message)
-      context.set_code(grpc.StatusCode.INTERNAL)
-      return demo_pb2.Empty()
-
-    return demo_pb2.Empty()
-
-class DummyEmailService(BaseEmailService):
-  def SendOrderConfirmation(self, request, context):
-    logger.info('A request to send order confirmation email to {} has been received.'.format(request.email))
-    return demo_pb2.Empty()
-
-class HealthCheck():
-  def Check(self, request, context):
-    return health_pb2.HealthCheckResponse(
-      status=health_pb2.HealthCheckResponse.SERVING)
-
-def start(dummy_mode):
-  server = grpc.server(futures.ThreadPoolExecutor(max_workers=10),)
-  service = None
-  if dummy_mode:
-    service = DummyEmailService()
-  else:
-    raise Exception('non-dummy mode not implemented yet')
-
-  demo_pb2_grpc.add_EmailServiceServicer_to_server(service, server)
-  health_pb2_grpc.add_HealthServicer_to_server(service, server)
-
-  port = os.environ.get('PORT', "8080")
-  logger.info("listening on port: "+port)
-  server.add_insecure_port('[::]:'+port)
-  server.start()
   try:
-    while True:
-      time.sleep(3600)
-  except KeyboardInterrupt:
-    server.stop(0)
+    mongo_client = MongoClient(mongo_uri, serverSelectionTimeoutMS=5000)
+    mongo_client.admin.command('ping')
+    email_events_collection = mongo_client[db_name][coll_name]
+    email_events_collection.create_index([('orderId', 1)], name='idx_order_id')
+    email_events_collection.create_index([('createdAt', 1)], name='idx_created_at')
+    logger.info(f'Email Mongo persistence enabled on {db_name}.{coll_name}')
+  except Exception as exc:
+    logger.warning(f'Email Mongo initialization failed, continuing without persistence: {exc}')
+    mongo_client = None
+    email_events_collection = None
+
+app = Flask(__name__)
+
+@app.route('/send-confirmation', methods=['POST'])
+def send_order_confirmation():
+    data = request.get_json()
+    email = data.get('email', '')
+    order = data.get('order', {})
+    order_id = order.get('orderId', '')
+    logger.info('A request to send order confirmation email to {} has been received.'.format(email))
+
+    if email_events_collection is not None:
+      try:
+        email_events_collection.insert_one({
+          'orderId': order_id,
+          'email': email,
+          'status': 'accepted',
+          'template': 'confirmation.html',
+          'requestPayload': {
+            'orderId': order_id,
+            'shippingTrackingId': order.get('shippingTrackingId', ''),
+            'itemCount': len(order.get('items', [])),
+          },
+          'createdAt': datetime.utcnow(),
+        })
+      except Exception as exc:
+        logger.warning(f'Failed to persist email event: {exc}')
+
+    return jsonify({})
+
+@app.route('/_healthz', methods=['GET'])
+def health_check():
+    return 'ok'
 
 def initStackdriverProfiling():
   project_id = None
@@ -124,12 +84,12 @@ def initStackdriverProfiling():
     project_id = os.environ["GCP_PROJECT_ID"]
   except KeyError:
     pass
-
   return
 
 
 if __name__ == '__main__':
   logger.info('starting the email service in dummy mode.')
+  init_mongo_store()
 
   try:
     if "DISABLE_PROFILER" in os.environ:
@@ -140,24 +100,6 @@ if __name__ == '__main__':
   except KeyError:
       logger.info("Profiler disabled.")
 
-  try:
-    if os.environ["ENABLE_TRACING"] == "1":
-      otel_endpoint = os.getenv("COLLECTOR_SERVICE_ADDR", "localhost:4317")
-      trace.set_tracer_provider(TracerProvider())
-      trace.get_tracer_provider().add_span_processor(
-        BatchSpanProcessor(
-            OTLPSpanExporter(
-            endpoint = otel_endpoint,
-            insecure = True
-          )
-        )
-      )
-    grpc_server_instrumentor = GrpcInstrumentorServer()
-    grpc_server_instrumentor.instrument()
-
-  except (KeyError, DefaultCredentialsError):
-      logger.info("Tracing disabled.")
-  except Exception as e:
-      logger.warn(f"Exception on Cloud Trace setup: {traceback.format_exc()}, tracing disabled.") 
-  
-  start(dummy_mode = True)
+  port = os.environ.get('PORT', "8080")
+  logger.info("listening on port: " + port)
+  app.run(host='0.0.0.0', port=int(port))

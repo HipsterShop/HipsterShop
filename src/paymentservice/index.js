@@ -11,6 +11,7 @@
 'use strict';
 
 const logger = require('./logger')
+const { MongoClient } = require('mongodb')
 
 if (process.env.DISABLE_PROFILER) {
   logger.info("Profiler disabled.")
@@ -24,46 +25,102 @@ if (process.env.DISABLE_PROFILER) {
   });
 }
 
+const express = require('express');
+const charge = require('./charge');
 
-if (process.env.ENABLE_TRACING == "1") {
-  logger.info("Tracing enabled.")
+const PORT = process.env['PORT'] || '50051';
 
-  const { resourceFromAttributes } = require('@opentelemetry/resources');
+const app = express();
+app.use(express.json());
 
-  const { ATTR_SERVICE_NAME }= require('@opentelemetry/semantic-conventions');
+let paymentEventsCollection = null;
 
-  const { GrpcInstrumentation } = require('@opentelemetry/instrumentation-grpc');
-  const { registerInstrumentations } = require('@opentelemetry/instrumentation');
-  const opentelemetry = require('@opentelemetry/sdk-node');
+async function initPaymentStore() {
+  const mongoUri = process.env.PAYMENT_MONGO_URI || process.env.MONGO_URI;
+  if (!mongoUri) {
+    logger.info('Payment Mongo persistence disabled.');
+    return;
+  }
 
-  const { OTLPTraceExporter } = require('@opentelemetry/exporter-otlp-grpc');
+  const dbName = process.env.MONGO_DATABASE || 'payment_db';
+  const collName = process.env.MONGO_PAYMENTS_COLLECTION || 'charges';
 
-  const collectorUrl = process.env.COLLECTOR_SERVICE_ADDR;
-  const traceExporter = new OTLPTraceExporter({url: collectorUrl});
-
-  const sdk = new opentelemetry.NodeSDK({
-    resource: resourceFromAttributes({
-      [ATTR_SERVICE_NAME]: process.env.OTEL_SERVICE_NAME || 'paymentservice',
-    }),
-    traceExporter: traceExporter,
-  });
-
-  registerInstrumentations({
-    instrumentations: [new GrpcInstrumentation()]
-  });
-
-  sdk.start()
-} else {
-  logger.info("Tracing disabled.")
+  try {
+    const client = new MongoClient(mongoUri, { serverSelectionTimeoutMS: 5000 });
+    await client.connect();
+    paymentEventsCollection = client.db(dbName).collection(collName);
+    await paymentEventsCollection.createIndex({ transactionId: 1 }, { name: 'idx_transaction_id' });
+    await paymentEventsCollection.createIndex({ createdAt: 1 }, { name: 'idx_created_at' });
+    logger.info(`Payment Mongo persistence enabled on ${dbName}.${collName}`);
+  } catch (err) {
+    logger.warn({ err: err.message }, 'Payment Mongo initialization failed; continuing without persistence');
+    paymentEventsCollection = null;
+  }
 }
 
+function maskCard(cardNumber) {
+  const digits = String(cardNumber || '').replace(/\D/g, '');
+  if (!digits) {
+    return '';
+  }
+  return `****${digits.slice(-4)}`;
+}
 
-const path = require('path');
-const HipsterShopServer = require('./server');
+async function persistChargeEvent(req, response, status, errorMessage) {
+  if (!paymentEventsCollection) {
+    return;
+  }
 
-const PORT = process.env['PORT'];
-const PROTO_PATH = path.join(__dirname, '/proto/');
+  const amount = req.body?.amount || {};
+  const card = req.body?.creditCard || {};
+  const doc = {
+    transactionId: response?.transactionId || null,
+    requestId: req.headers['x-request-id'] || null,
+    status,
+    error: errorMessage || null,
+    amount: {
+      currencyCode: amount.currencyCode || null,
+      units: amount.units ?? null,
+      nanos: amount.nanos ?? null,
+    },
+    cardMeta: {
+      last4Masked: maskCard(card.creditCardNumber),
+      expirationMonth: card.creditCardExpirationMonth || null,
+      expirationYear: card.creditCardExpirationYear || null,
+    },
+    createdAt: new Date(),
+  };
 
-const server = new HipsterShopServer(PROTO_PATH, PORT);
+  try {
+    await paymentEventsCollection.insertOne(doc);
+  } catch (err) {
+    logger.warn({ err: err.message }, 'Failed to persist payment charge event');
+  }
+}
 
-server.listen();
+app.post('/charge', async (req, res) => {
+  try {
+    logger.info(`PaymentService#Charge invoked with request ${JSON.stringify(req.body)}`);
+    const response = charge(req.body);
+    await persistChargeEvent(req, response, 'success', null);
+    res.json(response);
+  } catch (err) {
+    console.warn(err);
+    await persistChargeEvent(req, null, 'failed', err.message);
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/_healthz', (req, res) => {
+  res.send('ok');
+});
+
+initPaymentStore()
+  .catch((err) => {
+    logger.warn({ err: err.message }, 'Payment Mongo setup failed; continuing without persistence');
+  })
+  .finally(() => {
+    app.listen(PORT, () => {
+      logger.info(`PaymentService REST server started on port ${PORT}`);
+    });
+  });

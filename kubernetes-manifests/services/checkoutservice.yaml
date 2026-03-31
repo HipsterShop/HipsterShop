@@ -1,0 +1,124 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: hipster
+  name: checkoutservice
+  labels:
+    app: checkoutservice
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: checkoutservice
+  template:
+    metadata:
+      labels:
+        app: checkoutservice
+    spec:
+      containers:
+        - name: server
+          image: cazzzzz/trf-checkoutservice-hipster:latest
+          ports:
+          - containerPort: 5050
+          readinessProbe:
+            httpGet:
+              path: "/_healthz"
+              port: 5050
+          livenessProbe:
+            httpGet:
+              path: "/_healthz"
+              port: 5050
+          envFrom:
+            - configMapRef:
+                name: hipster-config
+          env:
+            - name: PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: service-ports
+                  key: CHECKOUTSERVICE_PORT
+            - name: PRODUCT_CATALOG_SERVICE_ADDR
+              valueFrom:
+                configMapKeyRef:
+                  name: service-addresses
+                  key: PRODUCT_CATALOG_SERVICE_ADDR
+            - name: SHIPPING_SERVICE_ADDR
+              valueFrom:
+                configMapKeyRef:
+                  name: service-addresses
+                  key: SHIPPING_SERVICE_ADDR
+            - name: PAYMENT_SERVICE_ADDR
+              valueFrom:
+                configMapKeyRef:
+                  name: service-addresses
+                  key: PAYMENT_SERVICE_ADDR
+            - name: EMAIL_SERVICE_ADDR
+              valueFrom:
+                configMapKeyRef:
+                  name: service-addresses
+                  key: EMAIL_SERVICE_ADDR
+            - name: CURRENCY_SERVICE_ADDR
+              valueFrom:
+                configMapKeyRef:
+                  name: service-addresses
+                  key: CURRENCY_SERVICE_ADDR
+            - name: CART_SERVICE_ADDR
+              valueFrom:
+                configMapKeyRef:
+                  name: service-addresses
+                  key: CART_SERVICE_ADDR
+            - name: MONGO_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: mongodb-users
+                  key: ORDER_MONGO_USERNAME
+            - name: MONGO_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mongodb-users
+                  key: ORDER_MONGO_PASSWORD
+            - name: MONGO_DATABASE
+              valueFrom:
+                configMapKeyRef:
+                  name: mongodb-config
+                  key: ORDER_DB_NAME
+            - name: MONGO_ORDERS_COLLECTION
+              valueFrom:
+                configMapKeyRef:
+                  name: mongodb-config
+                  key: ORDER_ORDERS_COLLECTION
+            - name: MONGO_ORDER_EVENTS_COLLECTION
+              valueFrom:
+                configMapKeyRef:
+                  name: mongodb-config
+                  key: ORDER_EVENTS_COLLECTION
+            - name: MONGO_URI
+              value: "mongodb://$(MONGO_USERNAME):$(MONGO_PASSWORD)@mongodb-0.mongo-headless.hipster.svc.cluster.local:27017,mongodb-1.mongo-headless.hipster.svc.cluster.local:27017,mongodb-2.mongo-headless.hipster.svc.cluster.local:27017/order_db?replicaSet=rs0&authSource=order_db&authMechanism=SCRAM-SHA-256"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: hipster
+  name: checkoutservice
+  labels:
+    app: checkoutservice
+spec:
+  type: ClusterIP
+  selector:
+    app: checkoutservice
+  ports:
+  - name: http
+    port: 5050
+    targetPort: 5050

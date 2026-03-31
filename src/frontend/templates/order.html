@@ -18,12 +18,6 @@
 
     {{ template "header" . }}
 
-    <div {{ with $.platform_css }} class="{{.}}" {{ end }}>
-        <span class="platform-flag">
-            {{$.platform_name}}
-        </span>
-    </div>
-
     <main role="main" class="order">
 
         <section class="container order-complete-section">

@@ -1,0 +1,97 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: hipster
+  name: productcatalogservice
+  labels:
+    app: productcatalogservice
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: productcatalogservice
+  template:
+    metadata:
+      labels:
+        app: productcatalogservice
+    spec:
+      terminationGracePeriodSeconds: 5
+      containers:
+      - name: server
+        image: cazzzzz/trf-productcatalogservice-hipster:v1
+        ports:
+        - containerPort: 3550
+        envFrom:
+        - configMapRef:
+            name: hipster-config
+        env:
+        - name: PORT
+          valueFrom:
+            configMapKeyRef:
+              name: service-ports
+              key: PRODUCTCATALOG_PORT
+        - name: MONGO_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-users
+              key: CATALOG_MONGO_USERNAME
+        - name: MONGO_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-users
+              key: CATALOG_MONGO_PASSWORD
+        - name: MONGO_DATABASE
+          valueFrom:
+            configMapKeyRef:
+              name: mongodb-config
+              key: CATALOG_DB_NAME
+        - name: MONGO_PRODUCTS_COLLECTION
+          valueFrom:
+            configMapKeyRef:
+              name: mongodb-config
+              key: CATALOG_PRODUCTS_COLLECTION
+        - name: PRODUCTS_FALLBACK_LOCAL
+          value: "true"
+        - name: MONGO_URI
+          value: "mongodb://$(MONGO_USERNAME):$(MONGO_PASSWORD)@mongodb-0.mongo-headless.hipster.svc.cluster.local:27017,mongodb-1.mongo-headless.hipster.svc.cluster.local:27017,mongodb-2.mongo-headless.hipster.svc.cluster.local:27017/catalog_db?replicaSet=rs0&authSource=catalog_db&authMechanism=SCRAM-SHA-256"
+        readinessProbe:
+          initialDelaySeconds: 20
+          periodSeconds: 5
+          httpGet:
+            path: "/_healthz"
+            port: 3550
+        livenessProbe:
+          initialDelaySeconds: 40
+          failureThreshold: 6
+          periodSeconds: 5
+          httpGet:
+            path: "/_healthz"
+            port: 3550
+        resources:
+          requests:
+            cpu: 100m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: hipster
+  name: productcatalogservice
+  labels:
+    app: productcatalogservice
+spec:
+  type: ClusterIP
+  selector:
+    app: productcatalogservice
+  ports:
+  - name: http
+    port: 3550
+    targetPort: 3550

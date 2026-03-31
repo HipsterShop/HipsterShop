@@ -59,6 +59,16 @@
                         <span class="cart-size-circle">{{$.cart_size}}</span>
                         {{ end }}
                     </a>
+
+                    <div class="auth-actions">
+                        {{ if $.is_authenticated }}
+                        <span class="auth-email">{{ $.user_email }}</span>
+                        <a href="{{ $.baseUrl }}/logout" class="btn auth-btn auth-btn-outline">Logout</a>
+                        {{ else }}
+                        <a href="{{ $.baseUrl }}/login" class="btn auth-btn auth-btn-outline">Login</a>
+                        <a href="{{ $.baseUrl }}/signup" class="btn auth-btn auth-btn-solid">Sign Up</a>
+                        {{ end }}
+                    </div>
                 </div>
             </div>
         </div>

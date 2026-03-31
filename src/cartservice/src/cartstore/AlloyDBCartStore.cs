@@ -1,11 +1,11 @@
 
 using System;
-using Grpc.Core;
 using Npgsql;
 using Microsoft.Extensions.Configuration;
 using System.Threading.Tasks;
 using Google.Api.Gax.ResourceNames;
 using Google.Cloud.SecretManager.V1;
+using cartservice.models;
  
 namespace cartservice.cartstore
 {
@@ -75,17 +75,15 @@ namespace cartservice.cartstore
         }
         catch (Exception ex)
         {   
-            throw new RpcException(
-                new Status(StatusCode.FailedPrecondition, $"Unable to access cart storage due to an internal error. {ex}"));
+            throw new Exception($"Unable to access cart storage due to an internal error. {ex}");
         }
     }
 
 
-        public async Task<Hipstershop.Cart> GetCartAsync(string userId)
+        public async Task<Cart> GetCartAsync(string userId)
         {
             Console.WriteLine($"GetCartAsync called for userId={userId}");
-            Hipstershop.Cart cart = new();
-            cart.UserId = userId;
+            Cart cart = new() { UserId = userId };
             try
             {
                 await using var dataSource = NpgsqlDataSource.Create(connectionString);
@@ -96,7 +94,7 @@ namespace cartservice.cartstore
                 {
                     while (await reader.ReadAsync())
                     {
-                        Hipstershop.CartItem item = new()
+                        CartItem item = new()
                         {
                             ProductId = reader.GetString(0),
                             Quantity = reader.GetInt32(1)
@@ -111,8 +109,7 @@ namespace cartservice.cartstore
             }
             catch (Exception ex)
             {
-                throw new RpcException(
-                    new Status(StatusCode.FailedPrecondition, $"Unable to access cart storage due to an internal error. {ex}"));
+                throw new Exception($"Unable to access cart storage due to an internal error. {ex}");
             }
             return cart;
         }
@@ -136,8 +133,7 @@ namespace cartservice.cartstore
             }
             catch (Exception ex)
             {
-                throw new RpcException(
-                    new Status(StatusCode.FailedPrecondition, $"Unable to access cart storage due to an internal error. {ex}"));
+                throw new Exception($"Unable to access cart storage due to an internal error. {ex}");
             }
         }
 
@@ -154,4 +150,3 @@ namespace cartservice.cartstore
         }
     }
 }
-

@@ -1,10 +1,10 @@
 
 using System;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
-using Grpc.Core;
 using Microsoft.Extensions.Caching.Distributed;
-using Google.Protobuf;
+using cartservice.models;
 
 namespace cartservice.cartstore
 {
@@ -23,32 +23,34 @@ namespace cartservice.cartstore
 
             try
             {
-                Hipstershop.Cart cart;
+                Cart cart;
                 var value = await _cache.GetAsync(userId);
                 if (value == null)
                 {
-                    cart = new Hipstershop.Cart();
+                    cart = new Cart();
                     cart.UserId = userId;
-                    cart.Items.Add(new Hipstershop.CartItem { ProductId = productId, Quantity = quantity });
+                    cart.Items.Add(new CartItem { ProductId = productId, Quantity = quantity });
                 }
                 else
                 {
-                    cart = Hipstershop.Cart.Parser.ParseFrom(value);
+                    var json = System.Text.Encoding.UTF8.GetString(value);
+                    cart = JsonSerializer.Deserialize<Cart>(json) ?? new Cart { UserId = userId };
                     var existingItem = cart.Items.SingleOrDefault(i => i.ProductId == productId);
                     if (existingItem == null)
                     {
-                        cart.Items.Add(new Hipstershop.CartItem { ProductId = productId, Quantity = quantity });
+                        cart.Items.Add(new CartItem { ProductId = productId, Quantity = quantity });
                     }
                     else
                     {
                         existingItem.Quantity += quantity;
                     }
                 }
-                await _cache.SetAsync(userId, cart.ToByteArray());
+                var cartJson = JsonSerializer.Serialize(cart);
+                await _cache.SetAsync(userId, System.Text.Encoding.UTF8.GetBytes(cartJson));
             }
             catch (Exception ex)
             {
-                throw new RpcException(new Status(StatusCode.FailedPrecondition, $"Can't access cart storage. {ex}"));
+                throw new Exception($"Can't access cart storage. {ex}");
             }
         }
 
@@ -58,16 +60,17 @@ namespace cartservice.cartstore
 
             try
             {
-                var cart = new Hipstershop.Cart();
-                await _cache.SetAsync(userId, cart.ToByteArray());
+                var cart = new Cart();
+                var cartJson = JsonSerializer.Serialize(cart);
+                await _cache.SetAsync(userId, System.Text.Encoding.UTF8.GetBytes(cartJson));
             }
             catch (Exception ex)
             {
-                throw new RpcException(new Status(StatusCode.FailedPrecondition, $"Can't access cart storage. {ex}"));
+                throw new Exception($"Can't access cart storage. {ex}");
             }
         }
 
-        public async Task<Hipstershop.Cart> GetCartAsync(string userId)
+        public async Task<Cart> GetCartAsync(string userId)
         {
             Console.WriteLine($"GetCartAsync called with userId={userId}");
 
@@ -77,14 +80,15 @@ namespace cartservice.cartstore
 
                 if (value != null)
                 {
-                    return Hipstershop.Cart.Parser.ParseFrom(value);
+                    var json = System.Text.Encoding.UTF8.GetString(value);
+                    return JsonSerializer.Deserialize<Cart>(json) ?? new Cart();
                 }
 
-                return new Hipstershop.Cart();
+                return new Cart();
             }
             catch (Exception ex)
             {
-                throw new RpcException(new Status(StatusCode.FailedPrecondition, $"Can't access cart storage. {ex}"));
+                throw new Exception($"Can't access cart storage. {ex}");
             }
         }
 

@@ -9,16 +9,21 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"net/http"
-	"time"
 	"os"
+	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 )
 
 type ctxKeyLog struct{}
 type ctxKeyRequestID struct{}
+type ctxKeyUserID struct{}
+type ctxKeyUserEmail struct{}
+type ctxKeyAuthenticated struct{}
 
 type logHandler struct {
 	log  *logrus.Logger
@@ -75,9 +80,21 @@ func (lh *logHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	lh.next.ServeHTTP(rr, r)
 }
 
-func ensureSessionID(next http.Handler) http.HandlerFunc {
+type frontendClaims struct {
+	UserID string `json:"userId"`
+	Email  string `json:"email"`
+	Name   string `json:"name"`
+	jwt.RegisteredClaims
+}
+
+func ensureSessionAndAuth(next http.Handler, jwtSecret string, log *logrus.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var sessionID string
+		ctx := r.Context()
+		ctx = context.WithValue(ctx, ctxKeyAuthenticated{}, false)
+		ctx = context.WithValue(ctx, ctxKeyUserID{}, "")
+		ctx = context.WithValue(ctx, ctxKeyUserEmail{}, "")
+
 		c, err := r.Cookie(cookieSessionID)
 		if err == http.ErrNoCookie {
 			if os.Getenv("ENABLE_SINGLE_SHARED_SESSION") == "true" {
@@ -97,8 +114,40 @@ func ensureSessionID(next http.Handler) http.HandlerFunc {
 		} else {
 			sessionID = c.Value
 		}
-		ctx := context.WithValue(r.Context(), ctxKeySessionID{}, sessionID)
+
+		if jwtSecret != "" {
+			authCookie, cookieErr := r.Cookie("auth_token")
+			if cookieErr == nil && authCookie.Value != "" {
+				claims := &frontendClaims{}
+				token, parseErr := jwt.ParseWithClaims(authCookie.Value, claims, func(token *jwt.Token) (interface{}, error) {
+					if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+						return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+					}
+					return []byte(jwtSecret), nil
+				})
+				if parseErr == nil && token != nil && token.Valid && claims.UserID != "" {
+					sessionID = claims.UserID
+					ctx = context.WithValue(ctx, ctxKeyAuthenticated{}, true)
+					ctx = context.WithValue(ctx, ctxKeyUserID{}, claims.UserID)
+					ctx = context.WithValue(ctx, ctxKeyUserEmail{}, claims.Email)
+				} else if parseErr != nil {
+					log.WithError(parseErr).Debug("ignoring invalid auth token")
+				}
+			}
+		}
+
+		ctx = context.WithValue(ctx, ctxKeySessionID{}, sessionID)
 		r = r.WithContext(ctx)
 		next.ServeHTTP(w, r)
 	}
+}
+
+func requireLogin(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if isAuthenticated(r) {
+			next.ServeHTTP(w, r)
+			return
+		}
+		http.Redirect(w, r, baseUrl+"/login", http.StatusFound)
+	})
 }
