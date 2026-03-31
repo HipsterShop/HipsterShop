@@ -112,7 +112,7 @@ func main() {
 	r.HandleFunc(baseUrl+"/robots.txt", func(w http.ResponseWriter, _ *http.Request) { fmt.Fprint(w, "User-agent: *\nDisallow: /") })
 	r.HandleFunc(baseUrl+"/_healthz", func(w http.ResponseWriter, _ *http.Request) { fmt.Fprint(w, "ok") })
 	r.HandleFunc(baseUrl+"/product-meta/{ids}", svc.getProductByID).Methods(http.MethodGet)
-	r.HandleFunc(baseUrl+"/api/assistant/chat", svc.assistantChatHandler).Methods(http.MethodPost)
+
 
 	var handler http.Handler = r
 	handler = &logHandler{log: log, next: handler}     // add logging
@@ -123,7 +123,7 @@ func main() {
 	log.Fatal(http.ListenAndServe(addr+":"+srvPort, handler))
 }
 
-func initStats(log logrus.FieldLogger) {
+func initStats(log logrus.FieldLogger) { 
 	// TODO(arbrown) Implement OpenTelemtry stats
 }
 
