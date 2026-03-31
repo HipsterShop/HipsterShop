@@ -8,4 +8,3 @@ data:
   COLLECTOR_SERVICE_ADDR: "jaeger:4317"
   FRONTEND_MESSAGE: "Checkout HipsterShop today!"
   ENABLE_ASSISTANT: "true"
-  OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger.hipster.svc.cluster.local:4317"

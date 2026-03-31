@@ -32,5 +32,4 @@ resources:
  - gateway/route-productcatalog-route.yaml
  - gateway/route-recommendation-route.yaml
  - gateway/route-shipping-route.yaml
- - observability/jaeger.yaml
  - gateway/route-assistant-route.yaml
