@@ -5,7 +5,6 @@ resources:
  - base/namespace.yaml
  - base/secrets.yaml
  - base/configmaps.yaml
- - storage/pv.yaml
  - database/mongodb.yaml
  - services/adservice.yaml
  - services/authservice.yaml
@@ -33,3 +32,4 @@ resources:
  - gateway/route-recommendation-route.yaml
  - gateway/route-shipping-route.yaml
  - gateway/route-assistant-route.yaml
+ - HPA/frontend-hpa.yaml
