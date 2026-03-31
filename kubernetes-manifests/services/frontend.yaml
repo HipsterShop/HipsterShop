@@ -36,20 +36,20 @@ spec:
               - name: "Cookie"
                 value: "shop_session-id=x-liveness-probe"
           envFrom:
-        - configMapRef:
-            name: hipster-config
-        env:
-          - name: PORT
-            value: "8080"
-          - name: GATEWAY_ADDR
-            value: "hipstershop-gateway.hipster.svc.cluster.local"
-            #chckhere**
+            - configMapRef:
+                name: hipster-config
+          env:
+            - name: PORT
+              value: "8080"
+            - name: GATEWAY_ADDR
+              value: "hipstershop-gateway.hipster.svc.cluster.local"
+              #chckhere**
 
-          - name: JWT_SECRET
-            valueFrom:
-              secretKeyRef:
-                name: jwt-secret
-                key: JWT_SECRET
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: jwt-secret
+                  key: JWT_SECRET
           resources:
             requests:
               cpu: 100m

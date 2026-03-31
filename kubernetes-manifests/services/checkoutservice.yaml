@@ -28,41 +28,41 @@ spec:
               path: "/_healthz"
               port: 5050
           envFrom:
-        - configMapRef:
-            name: hipster-config
-        env:
-          - name: PORT
-            value: "5050"
-          - name: PRODUCT_CATALOG_SERVICE_ADDR
-            value: "productcatalogservice:3550"
-          - name: SHIPPING_SERVICE_ADDR
-            value: "shippingservice:50051"
-          - name: PAYMENT_SERVICE_ADDR
-            value: "paymentservice:50051"
-          - name: EMAIL_SERVICE_ADDR
-            value: "emailservice:8080"
-          - name: CURRENCY_SERVICE_ADDR
-            value: "currencyservice:7000"
-          - name: CART_SERVICE_ADDR
-            value: "cartservice:7070"
-          - name: ORDER_MONGO_USERNAME
-            valueFrom:
-              secretKeyRef:
-                name: mongo-app-secret
-                key: ORDER_MONGO_USERNAME
-          - name: ORDER_MONGO_PASSWORD
-            valueFrom:
-              secretKeyRef:
-                name: mongo-app-secret
-                key: ORDER_MONGO_PASSWORD
-          - name: ORDER_MONGO_URI
-            value: "mongodb://$(ORDER_MONGO_USERNAME):$(ORDER_MONGO_PASSWORD)@mongodb-0.mongo-headless.hipster.svc.cluster.local:27017,mongodb-1.mongo-headless.hipster.svc.cluster.local:27017,mongodb-2.mongo-headless.hipster.svc.cluster.local:27017/order_db?replicaSet=rs0&authSource=order_db&authMechanism=SCRAM-SHA-256"
-          - name: MONGO_DATABASE
-            value: "order_db"
-          - name: MONGO_ORDERS_COLLECTION
-            value: "orders"
-          - name: MONGO_ORDER_EVENTS_COLLECTION
-            value: "order_events"
+            - configMapRef:
+                name: hipster-config
+          env:
+            - name: PORT
+              value: "5050"
+            - name: PRODUCT_CATALOG_SERVICE_ADDR
+              value: "productcatalogservice:3550"
+            - name: SHIPPING_SERVICE_ADDR
+              value: "shippingservice:50051"
+            - name: PAYMENT_SERVICE_ADDR
+              value: "paymentservice:50051"
+            - name: EMAIL_SERVICE_ADDR
+              value: "emailservice:8080"
+            - name: CURRENCY_SERVICE_ADDR
+              value: "currencyservice:7000"
+            - name: CART_SERVICE_ADDR
+              value: "cartservice:7070"
+            - name: ORDER_MONGO_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: mongo-app-secret
+                  key: ORDER_MONGO_USERNAME
+            - name: ORDER_MONGO_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mongo-app-secret
+                  key: ORDER_MONGO_PASSWORD
+            - name: ORDER_MONGO_URI
+              value: "mongodb://$(ORDER_MONGO_USERNAME):$(ORDER_MONGO_PASSWORD)@mongodb-0.mongo-headless.hipster.svc.cluster.local:27017,mongodb-1.mongo-headless.hipster.svc.cluster.local:27017,mongodb-2.mongo-headless.hipster.svc.cluster.local:27017/order_db?replicaSet=rs0&authSource=order_db&authMechanism=SCRAM-SHA-256"
+            - name: MONGO_DATABASE
+              value: "order_db"
+            - name: MONGO_ORDERS_COLLECTION
+              value: "orders"
+            - name: MONGO_ORDER_EVENTS_COLLECTION
+              value: "order_events"
           resources:
             requests:
               cpu: 100m
