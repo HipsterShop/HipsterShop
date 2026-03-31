@@ -83,10 +83,6 @@ spec:
             configMapKeyRef:
               name: mongodb-config
               key: CART_DB_NAME
-        - name: MONGO_URI
-          valueFrom:
-            configMapKeyRef:
-              name: database-config
         resources:
           requests:
             cpu: 200m
