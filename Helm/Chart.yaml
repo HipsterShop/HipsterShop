@@ -1,9 +1,7 @@
 apiVersion: v2
 name: hipstershop
 description: |
-  HipsterShop — Cloud-native microservices e-commerce demo.
-  Deploys 12 microservices, MongoDB StatefulSet (3-node replica set),
-  kgateway (Envoy-based) API Gateway, HPA, and all supporting ConfigMaps/Secrets.
+  HipsterShop
 type: application
 version: 1.0.0
 appVersion: "1.0.0"

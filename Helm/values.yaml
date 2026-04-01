@@ -1,14 +1,4 @@
-# =============================================================
-# HipsterShop Helm values.yaml
-# All configurable values for the chart.
-# Change these to override any default for your environment.
-# =============================================================
 
-# ── Namespace ─────────────────────────────────────────────────
-# Set via --namespace flag at install time:
-#   helm install hipstershop ./hipstershop --namespace hipster --create-namespace
-
-# ── Container Images ──────────────────────────────────────────
 images:
   adservice:              cazzzzz/trf-adservice-hipster:latest
   assistantservice:       cazzzzz/trf-assistantservice-hipster:latest
@@ -25,7 +15,7 @@ images:
   mongodb:                mongo:7.0
   loadgenerator:          busybox:1.28
 
-# ── Replica Counts ────────────────────────────────────────────
+
 replicas:
   adservice:             2
   assistantservice:      2
@@ -41,12 +31,11 @@ replicas:
   shippingservice:       2
   loadgenerator:         3
 
-# ── Deployment Strategy ───────────────────────────────────────
+
 rollingUpdate:
   maxUnavailable: 1
   maxSurge: 1
 
-# ── Service Ports ─────────────────────────────────────────────
 ports:
   adservice:             9555
   authservice:           8081
@@ -54,32 +43,29 @@ ports:
   checkoutservice:       5050
   currencyservice:       7000
   emailservice:          8080
-  frontend:              8080   # container port
-  frontendSvc:           80     # service port (ClusterIP)
+  frontend:              8080   
+  frontendSvc:           80     
   paymentservice:        50051
   productcatalogservice: 3550
   recommendationservice: 8080
   shippingservice:       50051
   assistantservice:      8080
 
-# ── Application Secrets ───────────────────────────────────────
-# WARNING: In production, use Sealed Secrets / Vault / SOPS.
-#          Do NOT commit real credentials to a public repository.
+
 secrets:
   jwtSecret:    "team4hipstershopsecret"
   geminiApiKey: "REPLACE_WITH_GEMINI_API_KEY"
 
-# ── MongoDB Configuration ─────────────────────────────────────
+
 mongodb:
   replicas:         3
   storageClass:     nfs
   storageSize:      5Gi
   replicaSetName:   rs0
   initDatabase:     shopdb
-  # Root (admin) credentials
+
   rootUsername:     admin
   rootPassword:     mongopassword
-  # Per-service database users
   users:
     auth:
       username: auth_user
@@ -110,21 +96,20 @@ mongodb:
       password: analytics_password
       database: analytics_db
 
-# ── ConfigMap: hipster-config ──────────────────────────────────
+
 appConfig:
   enableTracing:        "1"
   collectorServiceAddr: "jaeger:4317"
   frontendMessage:      "Checkout HipsterShop today!"
   enableAssistant:      "true"
 
-# ── ConfigMap: app-features ────────────────────────────────────
+
 features:
   currencyServiceRandomError:      "1"
   paymentServiceDisableProfiler:   "1"
   productCatalogSeedDatabase:      "true"
   geminiModel:                     "gemini-2.5-flash"
-
-# ── ConfigMap: mongodb-config ──────────────────────────────────
+ 
 mongodbConfig:
   replicaSet:                      rs0
   catalogProductsCollection:       products
@@ -133,14 +118,12 @@ mongodbConfig:
   paymentChargesCollection:        charges
   analyticsRecommendationsCollection: recommendations
   notificationEmailEventsCollection:  email_events
-
-# ── Gateway ───────────────────────────────────────────────────
+ 
 gateway:
   name:             hipstershop-gateway
   gatewayClassName: kgateway
   port:             80
-
-# ── HPA ───────────────────────────────────────────────────────
+ 
 hpa:
   frontend:
     minReplicas:        2
@@ -156,10 +139,9 @@ hpa:
       percentValue:               100
       podsValue:                  2
       periodSeconds:              15
-
-# ── Resource Requests & Limits ────────────────────────────────
+ 
 resources:
-  # Standard small service
+ 
   standard:
     requests:
       cpu:    100m
@@ -167,7 +149,7 @@ resources:
     limits:
       cpu:    200m
       memory: 128Mi
-  # Recommendation service (Python, needs more memory)
+ 
   recommendation:
     requests:
       cpu:    100m
@@ -175,7 +157,7 @@ resources:
     limits:
       cpu:    200m
       memory: 450Mi
-  # Ad service (JVM-based, needs more)
+ 
   adservice:
     requests:
       cpu:    200m
@@ -183,7 +165,7 @@ resources:
     limits:
       cpu:    300m
       memory: 512Mi
-  # Cart service (ASP.NET Core)
+ 
   cartservice:
     requests:
       cpu:    200m
@@ -191,7 +173,7 @@ resources:
     limits:
       cpu:    300m
       memory: 512Mi
-  # MongoDB
+ 
   mongodb:
     requests:
       cpu:    200m
