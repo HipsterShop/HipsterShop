@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: {{ .Values.global.namespaces.backend }}
+  name: checkoutservice
+  labels:
+    app: checkoutservice
+spec:
+  type: ClusterIP
+  selector:
+    app: checkoutservice
+  ports:
+  - name: http
+    port: {{ .Values.global.ports.checkoutservice }}
+    targetPort: {{ .Values.global.ports.checkoutservice }}

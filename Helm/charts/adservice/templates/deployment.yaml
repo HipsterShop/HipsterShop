@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: {{ .Values.global.namespaces.backend }}
+  name: adservice
+  labels:
+    app: adservice
+spec:
+  replicas: {{ .Values.global.replicas.adservice }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: {{ .Values.global.rollingUpdate.maxUnavailable }}
+      maxSurge: {{ .Values.global.rollingUpdate.maxSurge }}
+  selector:
+    matchLabels:
+      app: adservice
+  template:
+    metadata:
+      labels:
+        app: adservice
+        tier: backend
+    spec:
+      terminationGracePeriodSeconds: 5
+      containers:
+      - name: server
+        image: {{ .Values.global.images.adservice }}
+        ports:
+        - containerPort: {{ .Values.global.ports.adservice }}
+        envFrom:
+        - configMapRef:
+            name: hipster-config
+        env:
+        - name: PORT
+          valueFrom:
+            configMapKeyRef:
+              name: service-ports
+              key: ADSERVICE_PORT
+        resources:
+          requests:
+            cpu: {{ .Values.global.resources.adservice.requests.cpu }}
+            memory: {{ .Values.global.resources.adservice.requests.memory }}
+          limits:
+            cpu: {{ .Values.global.resources.adservice.limits.cpu }}
+            memory: {{ .Values.global.resources.adservice.limits.memory }}
+        readinessProbe:
+          initialDelaySeconds: 60
+          periodSeconds: 15
+          httpGet:
+            path: "/_healthz"
+            port: {{ .Values.global.ports.adservice }}
+        livenessProbe:
+          initialDelaySeconds: 60
+          periodSeconds: 15
+          httpGet:
+            path: "/_healthz"
+            port: {{ .Values.global.ports.adservice }}
+        volumeMounts:
+        - mountPath: /tmp
+          name: tmp-volume
+      volumes:
+      - name: tmp-volume
+        emptyDir: {}

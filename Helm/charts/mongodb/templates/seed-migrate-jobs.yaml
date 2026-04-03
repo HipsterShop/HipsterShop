@@ -1,0 +1,111 @@
+{{- $dbNs := .Values.global.namespaces.database -}}
+{{- $mongoURI := printf "mongodb://$MONGO_ROOT_USERNAME:$MONGO_ROOT_PASSWORD@mongodb-0.mongo-headless.%s.svc.cluster.local:27017,mongodb-1.mongo-headless.%s.svc.cluster.local:27017,mongodb-2.mongo-headless.%s.svc.cluster.local:27017/admin?replicaSet=%s&authSource=admin" $dbNs $dbNs $dbNs .Values.global.mongodb.replicaSetName -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  namespace: {{ $dbNs }}
+  name: mongo-seed-products
+spec:
+  backoffLimit: 10
+  template:
+    metadata:
+      labels:
+        tier: job
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: mongo-seed-products
+        image: {{ .Values.global.images.mongodb }}
+        env:
+        - name: MONGO_ROOT_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-root
+              key: MONGO_ROOT_USERNAME
+        - name: MONGO_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-root
+              key: MONGO_ROOT_PASSWORD
+        command:
+        - bash
+        - -c
+        - |
+          set -e
+          MONGO_URI="{{ $mongoURI }}"
+          check_primary() { mongosh "$MONGO_URI" --quiet --eval "db.hello().isWritablePrimary" | grep -q true; }
+          echo "Waiting for writable MongoDB primary..."
+          until check_primary; do echo "Retrying in 3s..."; sleep 3; done
+
+          mongosh "$MONGO_URI" --eval '
+            var catalogDb = db.getSiblingDB("catalog_db");
+            var coll = catalogDb.getCollection("products");
+            coll.createIndex({ id: 1 }, { unique: true, name: "uniq_product_id" });
+            coll.createIndex({ categories: 1 }, { name: "idx_categories" });
+            var products = [
+              {id:"OLJCESPC7Z",name:"Sunglasses",description:"Add a modern touch to your outfits with these sleek aviator sunglasses.",picture:"/static/img/products/sunglasses.jpg",priceUsd:{currencyCode:"USD",units:NumberLong(19),nanos:NumberInt(990000000)},categories:["accessories"]},
+              {id:"66VCHSJNUP",name:"Tank Top",description:"Perfectly cropped cotton tank, with a scooped neckline.",picture:"/static/img/products/tank-top.jpg",priceUsd:{currencyCode:"USD",units:NumberLong(18),nanos:NumberInt(990000000)},categories:["clothing","tops"]},
+              {id:"1YMWWN1N4O",name:"Watch",description:"This gold-tone stainless steel watch will work with most of your outfits.",picture:"/static/img/products/watch.jpg",priceUsd:{currencyCode:"USD",units:NumberLong(109),nanos:NumberInt(990000000)},categories:["accessories"]},
+              {id:"L9ECAV7KIM",name:"Loafers",description:"A neat addition to your summer wardrobe.",picture:"/static/img/products/loafers.jpg",priceUsd:{currencyCode:"USD",units:NumberLong(89),nanos:NumberInt(990000000)},categories:["footwear"]},
+              {id:"2ZYFJ3GM2N",name:"Hairdryer",description:"This lightweight hairdryer has 3 heat and speed settings.",picture:"/static/img/products/hairdryer.jpg",priceUsd:{currencyCode:"USD",units:NumberLong(24),nanos:NumberInt(990000000)},categories:["hair","beauty"]},
+              {id:"0PUK6V6EV0",name:"Candle Holder",description:"This small but intricate candle holder is an excellent gift.",picture:"/static/img/products/candle-holder.jpg",priceUsd:{currencyCode:"USD",units:NumberLong(18),nanos:NumberInt(990000000)},categories:["decor","home"]},
+              {id:"LS4PSXUNUM",name:"Salt & Pepper Shakers",description:"Add some flavor to your kitchen.",picture:"/static/img/products/salt-and-pepper-shakers.jpg",priceUsd:{currencyCode:"USD",units:NumberLong(18),nanos:NumberInt(490000000)},categories:["kitchen"]},
+              {id:"9SIQT8TOJO",name:"Bamboo Glass Jar",description:"This bamboo glass jar can hold 57 oz (1.7 l) and is perfect for any kitchen.",picture:"/static/img/products/bamboo-glass-jar.jpg",priceUsd:{currencyCode:"USD",units:NumberLong(5),nanos:NumberInt(490000000)},categories:["kitchen"]},
+              {id:"6E92ZMYYFZ",name:"Mug",description:"A simple mug with a mustard interior.",picture:"/static/img/products/mug.jpg",priceUsd:{currencyCode:"USD",units:NumberLong(8),nanos:NumberInt(990000000)},categories:["kitchen"]}
+            ];
+            products.forEach(function(p) { coll.updateOne({ id: p.id }, { $set: p }, { upsert: true }); });
+            print("Seed complete. Product count: " + coll.countDocuments({}));
+          '
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  namespace: {{ $dbNs }}
+  name: mongo-migrate-shopdb-data
+spec:
+  backoffLimit: 10
+  template:
+    metadata:
+      labels:
+        tier: job
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: mongo-migrate-shopdb-data
+        image: {{ .Values.global.images.mongodb }}
+        env:
+        - name: MONGO_ROOT_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-root
+              key: MONGO_ROOT_USERNAME
+        - name: MONGO_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-root
+              key: MONGO_ROOT_PASSWORD
+        command:
+        - bash
+        - -c
+        - |
+          set -e
+          MONGO_URI="{{ $mongoURI }}"
+          check_primary() { mongosh "$MONGO_URI" --quiet --eval "db.hello().isWritablePrimary" | grep -q true; }
+          echo "Waiting for writable MongoDB primary..."
+          until check_primary; do echo "Retrying in 3s..."; sleep 3; done
+
+          mongosh "$MONGO_URI" --eval '
+            function migrateCollection(sourceDbName, sourceCollName, targetDbName, targetCollName, keyField) {
+              var source = db.getSiblingDB(sourceDbName).getCollection(sourceCollName);
+              var target = db.getSiblingDB(targetDbName).getCollection(targetCollName);
+              var docs = source.find({}).toArray();
+              docs.forEach(function(doc) {
+                var query = {};
+                query[keyField] = doc[keyField];
+                target.updateOne(query, { $set: doc }, { upsert: true });
+              });
+              print("Migrated " + docs.length + " docs from " + sourceDbName + "." + sourceCollName + " to " + targetDbName + "." + targetCollName);
+            }
+            migrateCollection("shopdb", "users", "auth_db", "users", "email");
+            migrateCollection("shopdb", "carts", "cart_db", "carts", "_id");
+          '

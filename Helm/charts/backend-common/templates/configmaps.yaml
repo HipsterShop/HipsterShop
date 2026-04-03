@@ -1,0 +1,74 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hipster-config
+  namespace: {{ .Values.global.namespaces.backend }}
+data:
+  ENABLE_TRACING: {{ .Values.global.appConfig.enableTracing | quote }}
+  COLLECTOR_SERVICE_ADDR: {{ .Values.global.appConfig.collectorServiceAddr | quote }}
+  FRONTEND_MESSAGE: {{ .Values.global.appConfig.frontendMessage | quote }}
+  ENABLE_ASSISTANT: {{ .Values.global.appConfig.enableAssistant | quote }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: service-addresses
+  namespace: {{ .Values.global.namespaces.backend }}
+data:
+  GATEWAY_ADDR: "{{ .Values.global.gateway.name }}.{{ .Values.global.namespaces.backend }}.svc.cluster.local:{{ .Values.global.gateway.port }}"
+  PRODUCT_CATALOG_SERVICE_ADDR: "productcatalogservice:{{ .Values.global.ports.productcatalogservice }}"
+  SHIPPING_SERVICE_ADDR: "shippingservice:{{ .Values.global.ports.shippingservice }}"
+  PAYMENT_SERVICE_ADDR: "paymentservice:{{ .Values.global.ports.paymentservice }}"
+  EMAIL_SERVICE_ADDR: "emailservice:{{ .Values.global.ports.emailservice }}"
+  CURRENCY_SERVICE_ADDR: "currencyservice:{{ .Values.global.ports.currencyservice }}"
+  CART_SERVICE_ADDR: "cartservice:{{ .Values.global.ports.cartservice }}"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: service-ports
+  namespace: {{ .Values.global.namespaces.backend }}
+data:
+  ADSERVICE_PORT: {{ .Values.global.ports.adservice | quote }}
+  AUTHSERVICE_PORT: {{ .Values.global.ports.authservice | quote }}
+  CARTSERVICE_PORT: {{ .Values.global.ports.cartservice | quote }}
+  CHECKOUTSERVICE_PORT: {{ .Values.global.ports.checkoutservice | quote }}
+  CURRENCYSERVICE_PORT: {{ .Values.global.ports.currencyservice | quote }}
+  EMAILSERVICE_PORT: {{ .Values.global.ports.emailservice | quote }}
+  FRONTEND_PORT: {{ .Values.global.ports.frontend | quote }}
+  PAYMENTSERVICE_PORT: {{ .Values.global.ports.paymentservice | quote }}
+  PRODUCTCATALOG_PORT: {{ .Values.global.ports.productcatalogservice | quote }}
+  RECOMMENDATIONSERVICE_PORT: {{ .Values.global.ports.recommendationservice | quote }}
+  SHIPPINGSERVICE_PORT: {{ .Values.global.ports.shippingservice | quote }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mongodb-config
+  namespace: {{ .Values.global.namespaces.backend }}
+data:
+  MONGO_REPLICA_SET: {{ .Values.global.mongodbConfig.replicaSet | quote }}
+  AUTH_DB_NAME: {{ .Values.global.mongodb.users.auth.database | quote }}
+  CART_DB_NAME: {{ .Values.global.mongodb.users.cart.database | quote }}
+  CATALOG_DB_NAME: {{ .Values.global.mongodb.users.catalog.database | quote }}
+  ORDER_DB_NAME: {{ .Values.global.mongodb.users.order.database | quote }}
+  PAYMENT_DB_NAME: {{ .Values.global.mongodb.users.payment.database | quote }}
+  NOTIFICATION_DB_NAME: {{ .Values.global.mongodb.users.notification.database | quote }}
+  ANALYTICS_DB_NAME: {{ .Values.global.mongodb.users.analytics.database | quote }}
+  CATALOG_PRODUCTS_COLLECTION: {{ .Values.global.mongodbConfig.catalogProductsCollection | quote }}
+  ORDER_ORDERS_COLLECTION: {{ .Values.global.mongodbConfig.orderOrdersCollection | quote }}
+  ORDER_EVENTS_COLLECTION: {{ .Values.global.mongodbConfig.orderEventsCollection | quote }}
+  PAYMENT_CHARGES_COLLECTION: {{ .Values.global.mongodbConfig.paymentChargesCollection | quote }}
+  ANALYTICS_RECOMMENDATIONS_COLLECTION: {{ .Values.global.mongodbConfig.analyticsRecommendationsCollection | quote }}
+  NOTIFICATION_EMAIL_EVENTS_COLLECTION: {{ .Values.global.mongodbConfig.notificationEmailEventsCollection | quote }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-features
+  namespace: {{ .Values.global.namespaces.backend }}
+data:
+  CURRENCY_SERVICE_RANDOM_ERROR: {{ .Values.global.features.currencyServiceRandomError | quote }}
+  PAYMENT_SERVICE_DISABLE_PROFILER: {{ .Values.global.features.paymentServiceDisableProfiler | quote }}
+  PRODUCT_CATALOG_SEED_DATABASE: {{ .Values.global.features.productCatalogSeedDatabase | quote }}
+  GEMINI_MODEL: {{ .Values.global.features.geminiModel | quote }}

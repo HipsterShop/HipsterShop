@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: {{ .Values.global.namespaces.frontend }}
+  name: loadgenerator
+  labels:
+    app: loadgenerator
+spec:
+  replicas: {{ .Values.global.replicas.loadgenerator }}
+  selector:
+    matchLabels:
+      app: loadgenerator
+  template:
+    metadata:
+      labels:
+        app: loadgenerator
+    spec:
+      containers:
+        - name: load-generator
+          image: {{ .Values.global.images.loadgenerator }}
+          command: ["/bin/sh"]
+          args:
+            - -c
+            - |
+              while true; do
+                wget -q -O- http://frontend.{{ .Values.global.namespaces.frontend }}.svc.cluster.local/
+                sleep 0.1
+              done
+          resources:
+            requests:
+              cpu: {{ .Values.global.resources.standard.requests.cpu }}
+              memory: {{ .Values.global.resources.standard.requests.memory }}
+            limits:
+              cpu: {{ .Values.global.resources.standard.limits.cpu }}
+              memory: {{ .Values.global.resources.standard.limits.memory }}
+      restartPolicy: Always

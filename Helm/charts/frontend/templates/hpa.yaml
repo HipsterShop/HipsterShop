@@ -1,0 +1,42 @@
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  namespace: {{ .Values.global.namespaces.frontend }}
+  name: frontend-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: frontend
+  minReplicas: {{ .Values.global.hpa.frontend.minReplicas }}
+  maxReplicas: {{ .Values.global.hpa.frontend.maxReplicas }}
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.global.hpa.frontend.cpuUtilization }}
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.global.hpa.frontend.memoryUtilization }}
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: {{ .Values.global.hpa.frontend.scaleDown.stabilizationWindowSeconds }}
+      policies:
+      - type: Percent
+        value: {{ .Values.global.hpa.frontend.scaleDown.percentValue }}
+        periodSeconds: {{ .Values.global.hpa.frontend.scaleDown.periodSeconds }}
+    scaleUp:
+      stabilizationWindowSeconds: {{ .Values.global.hpa.frontend.scaleUp.stabilizationWindowSeconds }}
+      policies:
+      - type: Percent
+        value: {{ .Values.global.hpa.frontend.scaleUp.percentValue }}
+        periodSeconds: {{ .Values.global.hpa.frontend.scaleUp.periodSeconds }}
+      - type: Pods
+        value: {{ .Values.global.hpa.frontend.scaleUp.podsValue }}
+        periodSeconds: {{ .Values.global.hpa.frontend.scaleUp.periodSeconds }}
+      selectPolicy: Max

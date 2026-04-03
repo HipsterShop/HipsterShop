@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  namespace: {{ .Values.global.namespaces.database }}
+  name: mongodb
+  labels:
+    app: mongodb
+spec:
+  serviceName: mongo-headless
+  replicas: {{ .Values.global.mongodb.replicas }}
+  selector:
+    matchLabels:
+      app: mongodb
+  template:
+    metadata:
+      labels:
+        app: mongodb
+        tier: database
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+      - name: mongodb
+        image: {{ .Values.global.images.mongodb }}
+        command: ["mongod", "--replSet", "{{ .Values.global.mongodb.replicaSetName }}", "--bind_ip_all"]
+        ports:
+        - containerPort: 27017
+          name: mongo
+        env:
+        - name: MONGO_INITDB_ROOT_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-root
+              key: MONGO_ROOT_USERNAME
+        - name: MONGO_INITDB_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-root
+              key: MONGO_ROOT_PASSWORD
+        - name: MONGO_INITDB_DATABASE
+          value: {{ .Values.global.mongodb.initDatabase | quote }}
+        volumeMounts:
+        - name: mongo-data
+          mountPath: /data/db
+        readinessProbe:
+          exec:
+            command:
+            - mongosh
+            - --eval
+            - "db.adminCommand('ping')"
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          timeoutSeconds: 5
+        livenessProbe:
+          exec:
+            command:
+            - mongosh
+            - --eval
+            - "db.adminCommand('ping')"
+          initialDelaySeconds: 30
+          periodSeconds: 20
+          timeoutSeconds: 5
+        resources:
+          requests:
+            cpu: {{ .Values.global.resources.mongodb.requests.cpu }}
+            memory: {{ .Values.global.resources.mongodb.requests.memory }}
+          limits:
+            cpu: {{ .Values.global.resources.mongodb.limits.cpu }}
+            memory: {{ .Values.global.resources.mongodb.limits.memory }}
+  volumeClaimTemplates:
+  - metadata:
+      name: mongo-data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      storageClassName: {{ .Values.global.mongodb.storageClass | quote }}
+      resources:
+        requests:
+          storage: {{ .Values.global.mongodb.storageSize }}

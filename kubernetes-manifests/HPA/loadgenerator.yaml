@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  namespace: hipster
+  namespace: hipster-frontend
   name: loadgenerator
   labels:
     app: loadgenerator
@@ -23,7 +23,7 @@ spec:
             - -c
             - |
               while true; do
-                wget -q -O- http://frontend.hipster.svc.cluster.local/
+                wget -q -O- http://frontend.hipster-frontend.svc.cluster.local/
                 sleep 0.1
               done
           resources:

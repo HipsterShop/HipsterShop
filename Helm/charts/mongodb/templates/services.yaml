@@ -1,0 +1,32 @@
+{{- $dbNs := .Values.global.namespaces.database -}}
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: {{ $dbNs }}
+  name: mongo-headless
+  labels:
+    app: mongodb
+spec:
+  clusterIP: None
+  selector:
+    app: mongodb
+  ports:
+  - name: mongo
+    port: 27017
+    targetPort: 27017
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: {{ $dbNs }}
+  name: mongodb
+  labels:
+    app: mongodb
+spec:
+  type: ClusterIP
+  selector:
+    app: mongodb
+  ports:
+  - name: mongo
+    port: 27017
+    targetPort: 27017

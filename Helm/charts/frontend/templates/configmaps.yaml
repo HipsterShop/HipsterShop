@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hipster-config
+  namespace: {{ .Values.global.namespaces.frontend }}
+data:
+  ENABLE_TRACING: {{ .Values.global.appConfig.enableTracing | quote }}
+  COLLECTOR_SERVICE_ADDR: {{ .Values.global.appConfig.collectorServiceAddr | quote }}
+  FRONTEND_MESSAGE: {{ .Values.global.appConfig.frontendMessage | quote }}
+  ENABLE_ASSISTANT: {{ .Values.global.appConfig.enableAssistant | quote }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: service-addresses
+  namespace: {{ .Values.global.namespaces.frontend }}
+data:
+  GATEWAY_ADDR: "{{ .Values.global.gateway.name }}.{{ .Values.global.namespaces.backend }}.svc.cluster.local:{{ .Values.global.gateway.port }}"
+  PRODUCT_CATALOG_SERVICE_ADDR: "productcatalogservice.{{ .Values.global.namespaces.backend }}.svc.cluster.local:{{ .Values.global.ports.productcatalogservice }}"
+  SHIPPING_SERVICE_ADDR: "shippingservice.{{ .Values.global.namespaces.backend }}.svc.cluster.local:{{ .Values.global.ports.shippingservice }}"
+  PAYMENT_SERVICE_ADDR: "paymentservice.{{ .Values.global.namespaces.backend }}.svc.cluster.local:{{ .Values.global.ports.paymentservice }}"
+  EMAIL_SERVICE_ADDR: "emailservice.{{ .Values.global.namespaces.backend }}.svc.cluster.local:{{ .Values.global.ports.emailservice }}"
+  CURRENCY_SERVICE_ADDR: "currencyservice.{{ .Values.global.namespaces.backend }}.svc.cluster.local:{{ .Values.global.ports.currencyservice }}"
+  CART_SERVICE_ADDR: "cartservice.{{ .Values.global.namespaces.backend }}.svc.cluster.local:{{ .Values.global.ports.cartservice }}"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: service-ports
+  namespace: {{ .Values.global.namespaces.frontend }}
+data:
+  FRONTEND_PORT: {{ .Values.global.ports.frontend | quote }}

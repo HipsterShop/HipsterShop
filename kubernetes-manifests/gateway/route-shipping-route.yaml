@@ -1,7 +1,7 @@
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  namespace: hipster
+  namespace: hipster-backend
   name: shipping-route
   
   labels:
