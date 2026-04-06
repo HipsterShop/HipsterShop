@@ -1,8 +1,7 @@
-# ── Default deny all traffic in hipster-database ─────────────────
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: default-deny-all
+  name: database-policy
   namespace: hipster-database
 spec:
   podSelector: {}
@@ -10,20 +9,8 @@ spec:
   - Ingress
   - Egress
 
----
-# ── Allow required database traffic ──────────────────────────────
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: database-allow
-  namespace: hipster-database
-spec:
-  podSelector: {}
-  policyTypes:
-  - Ingress
-  - Egress
   ingress:
-  # Allow from hipster-backend on MongoDB port
+  # Allow from backend (services → MongoDB)
   - from:
     - namespaceSelector:
         matchLabels:
@@ -31,14 +18,17 @@ spec:
     ports:
     - protocol: TCP
       port: 27017
-  # Allow within hipster-database (replica set comms + init/seed/migrate jobs)
+
+  # Allow internal DB communication (replica set)
   - from:
     - podSelector: {}
+
   egress:
-  # Allow within hipster-database (MongoDB replica set communication)
+  # Allow internal DB communication
   - to:
     - podSelector: {}
-  # DNS resolution
+
+  # Allow DNS
   - to:
     - namespaceSelector: {}
     ports:
