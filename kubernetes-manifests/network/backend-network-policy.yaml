@@ -45,6 +45,21 @@ spec:
     - namespaceSelector:
         matchLabels:
           name: hipster-frontend
+  # Allow to kgateway control-plane (envoy xDS config)
+  # Default kgateway install namespace is 'gloo-system'.
+  # If yours differs, update the label below to match your actual namespace.
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: gloo-system
+  # Allow to kube-apiserver (kgateway controller watches K8s resources)
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+    ports:
+    - protocol: TCP
+      port: 443
   # DNS resolution
   - to:
     - namespaceSelector: {}

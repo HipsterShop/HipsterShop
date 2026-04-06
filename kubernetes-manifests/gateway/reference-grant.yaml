@@ -11,3 +11,4 @@ spec:
   to:
   - group: ""
     kind: Service
+    name: frontend   # restrict to ONLY the frontend Service, not all Services in hipster-frontend
