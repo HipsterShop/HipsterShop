@@ -23,6 +23,13 @@ spec:
   - Ingress
   - Egress
   ingress:
+  # Allow from HAProxy EC2 instance -> kgateway (external reverse proxy)
+  # Using /32 (single host) for least-privilege. If your HAProxy instance IP
+  # changes or you have multiple HAProxy nodes, switch to 172.31.0.0/16 (full VPC).
+  - from:
+    - ipBlock:
+        cidr: 172.31.77.99/32   # HAProxy private IP — change if needed
+        # cidr: 172.31.0.0/16   # uncomment this (and remove line above) to allow full VPC
   # Allow from hipster-frontend (frontend -> gateway)
   - from:
     - namespaceSelector:
