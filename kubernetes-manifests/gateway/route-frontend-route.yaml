@@ -81,3 +81,21 @@ spec:
         - name: frontend
           namespace: hipster-frontend
           port: 80
+    # ── /payment/* → frontend (Razorpay verify handler) ─────────────────────
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /payment
+      backendRefs:
+        - name: frontend
+          namespace: hipster-frontend
+          port: 80
+    # ── /order-confirm → frontend (Razorpay order confirmation page) ─────────
+    - matches:
+        - path:
+            type: Exact
+            value: /order-confirm
+      backendRefs:
+        - name: frontend
+          namespace: hipster-frontend
+          port: 80

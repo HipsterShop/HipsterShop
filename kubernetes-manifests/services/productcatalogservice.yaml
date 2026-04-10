@@ -24,7 +24,7 @@ spec:
       terminationGracePeriodSeconds: 5
       containers:
       - name: server
-        image: cazzzzz/trf-productcatalogservice-hipster:v1
+        image: abhinavbabu33/trf-productcatalogservice-hipster:v1
         ports:
         - containerPort: 3550
         envFrom:
@@ -59,7 +59,7 @@ spec:
         - name: PRODUCTS_FALLBACK_LOCAL
           value: "true"
         - name: MONGO_URI
-          value: "mongodb://$(MONGO_USERNAME):$(MONGO_PASSWORD)@mongodb-0.mongo-headless.hipster-database.svc.cluster.local:27017,mongodb-1.mongo-headless.hipster-database.svc.cluster.local:27017,mongodb-2.mongo-headless.hipster-database.svc.cluster.local:27017/catalog_db?replicaSet=rs0&authSource=catalog_db&authMechanism=SCRAM-SHA-256"
+          value: "mongodb://$(MONGO_USERNAME):$(MONGO_PASSWORD)@mongodb-0.mongo-headless.hipster-database.svc.cluster.local:27017,mongodb-1.mongo-headless.hipster-database.svc.cluster.local:27017/catalog_db?replicaSet=rs0&authSource=catalog_db&authMechanism=SCRAM-SHA-256"
         readinessProbe:
           initialDelaySeconds: 20
           periodSeconds: 5

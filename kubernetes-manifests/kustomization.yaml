@@ -4,6 +4,7 @@ resources:
  - base/namespace.yaml
  - base/configmaps.yaml
  - base/secrets.yaml
+ - base/razorpay-secret.yaml
  - database/secrets.yaml
 
  - database/mongodb.yaml

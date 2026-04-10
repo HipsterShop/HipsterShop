@@ -3,13 +3,13 @@ kind: HTTPRoute
 metadata:
   namespace: hipster-backend
   name: payment-route
-  
   labels:
     app: paymentservice
 spec:
   parentRefs:
     - name: hipstershop-gateway
   rules:
+    # ── /api/payment/charge → paymentservice /charge (legacy) ──────────────
     - matches:
         - path:
             type: Exact
@@ -20,6 +20,34 @@ spec:
             path:
               type: ReplaceFullPath
               replaceFullPath: /charge
+      backendRefs:
+        - name: paymentservice
+          port: 50051
+    # ── /api/payment/create-order → paymentservice /create-order ───────────
+    - matches:
+        - path:
+            type: Exact
+            value: /api/payment/create-order
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplaceFullPath
+              replaceFullPath: /create-order
+      backendRefs:
+        - name: paymentservice
+          port: 50051
+    # ── /api/payment/verify → paymentservice /verify ────────────────────────
+    - matches:
+        - path:
+            type: Exact
+            value: /api/payment/verify
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplaceFullPath
+              replaceFullPath: /verify
       backendRefs:
         - name: paymentservice
           port: 50051

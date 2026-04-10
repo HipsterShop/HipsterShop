@@ -107,6 +107,8 @@ func main() {
 	r.HandleFunc(baseUrl+"/signup", svc.signupPostHandler).Methods(http.MethodPost)
 	r.HandleFunc(baseUrl+"/logout", svc.logoutHandler).Methods(http.MethodGet)
 	r.Handle(baseUrl+"/cart/checkout", requireLogin(http.HandlerFunc(svc.placeOrderHandler))).Methods(http.MethodPost)
+	r.Handle(baseUrl+"/payment/razorpay/verify", requireLogin(http.HandlerFunc(svc.razorpayVerifyHandler))).Methods(http.MethodPost)
+	r.HandleFunc(baseUrl+"/order-confirm", svc.razorpayOrderConfirmHandler).Methods(http.MethodGet)
 
 	r.PathPrefix(baseUrl + "/static/").Handler(http.StripPrefix(baseUrl+"/static/", http.FileServer(http.Dir("./static/"))))
 	r.HandleFunc(baseUrl+"/robots.txt", func(w http.ResponseWriter, _ *http.Request) { fmt.Fprint(w, "User-agent: *\nDisallow: /") })

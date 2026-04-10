@@ -461,6 +461,141 @@ func (fe *frontendServer) placeOrderHandler(w http.ResponseWriter, r *http.Reque
 	}
 }
 
+// razorpayOrderConfirmHandler renders the order-confirmation page after a
+// successful Razorpay payment. The browser JS redirects here with orderId and
+// txnId as query parameters after the verify handler returns success.
+func (fe *frontendServer) razorpayOrderConfirmHandler(w http.ResponseWriter, r *http.Request) {
+	orderId := r.URL.Query().Get("orderId")
+	txnId   := r.URL.Query().Get("txnId")
+
+	if err := templates.ExecuteTemplate(w, "razorpay-confirm", injectCommonTemplateData(r, map[string]interface{}{
+		"order_id": orderId,
+		"txn_id":   txnId,
+	})); err != nil {
+		log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
+		log.Println(err)
+	}
+}
+
+// razorpayVerifyRequest is the JSON body sent by the browser after Razorpay popup success.
+type razorpayVerifyRequest struct {
+	RazorpayPaymentID string `json:"razorpay_payment_id"`
+	RazorpayOrderID   string `json:"razorpay_order_id"`
+	RazorpaySignature string `json:"razorpay_signature"`
+	Email             string `json:"email"`
+	StreetAddress     string `json:"street_address"`
+	ZipCode           string `json:"zip_code"`
+	City              string `json:"city"`
+	State             string `json:"state"`
+	Country           string `json:"country"`
+	Currency          string `json:"currency"`
+}
+
+// razorpayVerifyHandler is called by the browser JS after a successful Razorpay popup payment.
+// It:
+//  1. Verifies the HMAC signature with the paymentservice
+//  2. Places the order through the checkoutservice
+//  3. Returns JSON { orderId, transactionId } for the browser to redirect
+func (fe *frontendServer) razorpayVerifyHandler(w http.ResponseWriter, r *http.Request) {
+	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
+	userID := authenticatedUserID(r)
+	if userID == "" {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		fmt.Fprint(w, `{"error":"authentication required"}`)
+		return
+	}
+
+	var req razorpayVerifyRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprint(w, `{"error":"invalid request body"}`)
+		return
+	}
+
+	log.WithFields(logrus.Fields{
+		"razorpay_order_id":   req.RazorpayOrderID,
+		"razorpay_payment_id": req.RazorpayPaymentID,
+	}).Info("razorpay verify: verifying payment signature")
+
+	// ── 1. Verify Razorpay payment signature via paymentservice ──────────────
+	verifyPayload := map[string]string{
+		"razorpay_payment_id": req.RazorpayPaymentID,
+		"razorpay_order_id":   req.RazorpayOrderID,
+		"razorpay_signature":  req.RazorpaySignature,
+	}
+	var verifyResult struct {
+		TransactionID string `json:"transactionId"`
+	}
+	if err := postJSON(
+		fmt.Sprintf("http://%s/api/payment/verify", fe.gatewaySvcAddr),
+		verifyPayload,
+		&verifyResult,
+	); err != nil {
+		log.WithField("error", err).Error("razorpay verify: signature verification failed")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Payment verification failed: " + err.Error()})
+		return
+	}
+
+	log.WithField("transactionId", verifyResult.TransactionID).Info("razorpay verify: payment verified, placing order")
+
+	// ── 2. Place order via checkoutservice ───────────────────────────────────
+	currency := req.Currency
+	if currency == "" {
+		currency = currentCurrency(r)
+	}
+	zipCode, _ := strconv.ParseInt(req.ZipCode, 10, 32)
+
+	checkoutReq := map[string]interface{}{
+		"email": req.Email,
+		// Payment was already collected by Razorpay; pass dummy card data
+		// so the checkoutservice schema is satisfied.
+		"creditCard": map[string]interface{}{
+			"creditCardNumber":          "4111111111111111",
+			"creditCardExpirationMonth": int32(1),
+			"creditCardExpirationYear":  int32(2035),
+			"creditCardCvv":             int32(000),
+		},
+		"userId":       userID,
+		"userCurrency": currency,
+		"address": map[string]interface{}{
+			"streetAddress": req.StreetAddress,
+			"city":          req.City,
+			"state":         req.State,
+			"zipCode":       int32(zipCode),
+			"country":       req.Country,
+		},
+	}
+
+	var order PlaceOrderResponse
+	if err := postJSON(
+		fmt.Sprintf("http://%s/api/checkout", fe.gatewaySvcAddr),
+		checkoutReq,
+		&order,
+	); err != nil {
+		log.WithField("error", err).Error("razorpay verify: order placement failed after payment verification")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Order could not be placed after payment"})
+		return
+	}
+
+	log.WithFields(logrus.Fields{
+		"orderId":       order.Order.OrderId,
+		"transactionId": verifyResult.TransactionID,
+	}).Info("razorpay verify: order placed successfully")
+
+	// ── 3. Return order info to browser JS ───────────────────────────────────
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"orderId":       order.Order.OrderId,
+		"transactionId": verifyResult.TransactionID,
+	})
+}
+
 func (fe *frontendServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
 	if isAuthenticated(r) {

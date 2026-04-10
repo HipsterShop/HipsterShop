@@ -93,123 +93,77 @@
 
                 <div class="col-lg-5 offset-lg-1 col-xl-4">
 
-                    <form class="cart-checkout-form" action="{{ $.baseUrl }}/cart/checkout" method="POST">
+                    {{/* Hidden inputs: total cost values for the Razorpay JS */}}
+                    <input type="hidden" id="rzp-total-units"    value="{{ $.total_cost.Units }}">
+                    <input type="hidden" id="rzp-total-nanos"    value="{{ $.total_cost.Nanos }}">
+                    <input type="hidden" id="rzp-total-currency" value="{{ $.total_cost.CurrencyCode }}">
+                    <input type="hidden" id="rzp-base-url"       value="{{ $.baseUrl }}">
 
-                        <div class="row">
-                            <div class="col">
-                                <h3>Shipping Address</h3>
-                            </div>
+                    <div class="row">
+                        <div class="col">
+                            <h3>Shipping Address</h3>
                         </div>
+                    </div>
 
-                        <div class="form-row">
-                            <div class="col cymbal-form-field">
-                                <label for="email">E-mail Address</label>
-                                <input type="email" id="email"
-                                    name="email" value="someone@example.com" required>
-                            </div>
+                    <div class="form-row">
+                        <div class="col cymbal-form-field">
+                            <label for="rzp-email">E-mail Address</label>
+                            <input type="email" id="rzp-email"
+                                placeholder="someone@example.com" value="someone@example.com" required>
                         </div>
+                    </div>
 
-                        <div class="form-row">
-                            <div class="col cymbal-form-field">
-                                <label for="street_address">Street Address</label>
-                                <input type="text" name="street_address"
-                                    id="street_address" value="1600 Amphitheatre Parkway" required>
-                            </div>
+                    <div class="form-row">
+                        <div class="col cymbal-form-field">
+                            <label for="rzp-street">Street Address</label>
+                            <input type="text" id="rzp-street"
+                                value="1600 Amphitheatre Parkway" required>
                         </div>
+                    </div>
 
-                        <div class="form-row">
-                            <div class="col cymbal-form-field">
-                                <label for="zip_code">Zip Code</label>
-                                <input type="text"
-                                    name="zip_code" id="zip_code" value="94043" required pattern="\d{4,5}">
-                            </div>
+                    <div class="form-row">
+                        <div class="col cymbal-form-field">
+                            <label for="rzp-zip">Zip Code</label>
+                            <input type="text" id="rzp-zip" value="94043" required pattern="\d{4,5}">
                         </div>
+                    </div>
 
-                        <div class="form-row">
-                            <div class="col cymbal-form-field">
-                                <label for="city">City</label>
-                                <input type="text" name="city" id="city"
-                                    value="Mountain View" required>
-                                </div>
-                            </div>
-
-                        <div class="form-row">
-                            <div class="col-md-5 cymbal-form-field">
-                                <label for="state">State</label>
-                                <input type="text" name="state" id="state"
-                                    value="CA" required>
-                            </div>
-                            <div class="col-md-7 cymbal-form-field">
-                                <label for="country">Country</label>
-                                <input type="text" id="country"
-                                    placeholder="Country Name"
-                                    name="country" value="United States" required>
-                            </div>
+                    <div class="form-row">
+                        <div class="col cymbal-form-field">
+                            <label for="rzp-city">City</label>
+                            <input type="text" id="rzp-city" value="Mountain View" required>
                         </div>
+                    </div>
 
-                        <div class="row">
-                            <div class="col">
-                                <h3 class="payment-method-heading">Payment Method</h3>
-                            </div>
+                    <div class="form-row">
+                        <div class="col-md-5 cymbal-form-field">
+                            <label for="rzp-state">State</label>
+                            <input type="text" id="rzp-state" value="CA" required>
                         </div>
-
-                        <div class="form-row">
-                            <div class="col cymbal-form-field">
-                                <label for="credit_card_number">Credit Card Number</label>
-                                <input type="text" id="credit_card_number"
-                                    name="credit_card_number"
-                                    placeholder="0000000000000000"
-                                    value="4432801561520454"
-                                    required pattern="\d{16}">
-                            </div>
+                        <div class="col-md-7 cymbal-form-field">
+                            <label for="rzp-country">Country</label>
+                            <input type="text" id="rzp-country" placeholder="Country Name"
+                                value="United States" required>
                         </div>
+                    </div>
 
-                        <div class="form-row">
-                            <div class="col-md-5 cymbal-form-field">
-                                <label for="credit_card_expiration_month">Month</label>
-                                <select name="credit_card_expiration_month" id="credit_card_expiration_month">
-                                    <option value="1">January</option>
-                                    <option value="2">February</option>
-                                    <option value="3">March</option>
-                                    <option value="4">April</option>
-                                    <option value="5">May</option>
-                                    <option value="6">June</option>
-                                    <option value="7">July</option>
-                                    <option value="8">August</option>
-                                    <option value="9">September</option>
-                                    <option value="10">October</option>
-                                    <option value="11">November</option>
-                                    <option value="12">January</option>
-                                </select>
-                                <img src="{{ $.baseUrl }}/static/icons/Hipster_DownArrow.svg" alt="" class="cymbal-dropdown-chevron">
-                            </div>
-                            <div class="col-md-4 cymbal-form-field">
-                                    <label for="credit_card_expiration_year">Year</label>
-                                    <select name="credit_card_expiration_year" id="credit_card_expiration_year">
-                                    {{ range $i, $y := $.expiration_years}}<option value="{{$y}}"
-                                        {{if eq $i 1 -}}
-                                            selected="selected"
-                                        {{- end}}
-                                    >{{$y}}</option>{{end}}
-                                    </select>
-                                    <img src="{{ $.baseUrl }}/static/icons/Hipster_DownArrow.svg" alt="" class="cymbal-dropdown-chevron">
-                                </div>
-                            <div class="col-md-3 cymbal-form-field">
-                                <label for="credit_card_cvv">CVV</label>
-                                <input type="password" id="credit_card_cvv"
-                                    name="credit_card_cvv" value="672" required pattern="\d{3}">
-                            </div>
+                    <div class="row">
+                        <div class="col">
+                            <h3 class="payment-method-heading">Payment Method</h3>
+                            <p style="color:#666; font-size:0.9em; margin-bottom:1rem;">
+                                🔒 Secure payment powered by <strong>Razorpay</strong>.<br>
+                                Your card details will be entered in the secure Razorpay popup.
+                            </p>
                         </div>
+                    </div>
 
-                        <div class="form-row justify-content-center">
-                            <div class="col text-center">
-                                <button class="cymbal-button-primary" type="submit">
-                                    Place Order
-                                </button>
-                            </div>
+                    <div class="form-row justify-content-center">
+                        <div class="col text-center">
+                            <button id="rzp-pay-btn" class="cymbal-button-primary" type="button">
+                                Place Order &amp; Pay
+                            </button>
                         </div>
-
-                    </form>
+                    </div>
 
                 </div>
 
@@ -224,4 +178,157 @@
     {{ end }}
 
     {{ template "footer" . }}
+
+    {{/* ── Razorpay Checkout JS ────────────────────────────────────────────── */}}
+    <script>
+    (function () {
+      'use strict';
+
+      var payBtn = document.getElementById('rzp-pay-btn');
+      if (!payBtn) return;
+
+      // ── Load Razorpay Checkout.js asynchronously ─────────────────────────
+      var rzpScriptLoaded = false;
+      var script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.async = true;
+      script.onload  = function () { rzpScriptLoaded = true; };
+      script.onerror = function () {
+        console.error('Failed to load Razorpay Checkout script.');
+      };
+      document.head.appendChild(script);
+
+      payBtn.addEventListener('click', function () {
+        // ── Collect form values ─────────────────────────────────────────────
+        var email   = (document.getElementById('rzp-email').value   || '').trim();
+        var street  = (document.getElementById('rzp-street').value  || '').trim();
+        var zip     = (document.getElementById('rzp-zip').value     || '').trim();
+        var city    = (document.getElementById('rzp-city').value    || '').trim();
+        var state   = (document.getElementById('rzp-state').value   || '').trim();
+        var country = (document.getElementById('rzp-country').value || '').trim();
+        var baseUrl = document.getElementById('rzp-base-url').value || '';
+
+        if (!email || !street || !zip || !city || !country) {
+          alert('Please fill in all required shipping address fields.');
+          return;
+        }
+
+        if (!rzpScriptLoaded) {
+          alert('Payment processor is still loading, please try again in a moment.');
+          return;
+        }
+
+        // ── Compute amount in smallest currency unit ──────────────────────────
+        // units = whole units (dollars/rupees); nanos = 10^9 scale fractional
+        // smallest unit = units * 100 + round(nanos / 10^7)
+        var units    = parseInt(document.getElementById('rzp-total-units').value    || '0', 10);
+        var nanos    = parseInt(document.getElementById('rzp-total-nanos').value    || '0', 10);
+        var currency = document.getElementById('rzp-total-currency').value || 'USD';
+        var amount   = units * 100 + Math.round(nanos / 10000000);
+
+        if (amount <= 0) {
+          alert('Cart total appears to be zero — please reload the page.');
+          return;
+        }
+
+        payBtn.disabled    = true;
+        payBtn.textContent = 'Processing…';
+
+        // ── Step 1: Create Razorpay order on the backend ──────────────────────
+        fetch('/api/payment/create-order', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ amount: amount, currency: currency }),
+        })
+        .then(function (res) {
+          if (!res.ok) {
+            return res.json().then(function (d) {
+              throw new Error(d.error || 'Failed to create payment order');
+            });
+          }
+          return res.json();
+        })
+        .then(function (orderData) {
+          // ── Step 2: Open Razorpay popup ──────────────────────────────────
+          var options = {
+            key:         orderData.keyId,
+            amount:      orderData.amount,
+            currency:    orderData.currency,
+            order_id:    orderData.orderId,
+            name:        'Hipster Shop',
+            description: 'Order Payment',
+            image:       baseUrl + '/static/icons/Hipster_HeroLogoCyan.svg',
+            prefill: {
+              email:   email,
+              contact: '',
+            },
+            theme: { color: '#00BCD4' },
+
+            handler: function (response) {
+              // ── Step 3: Verify signature + place order (server-side) ──────
+              fetch(baseUrl + '/payment/razorpay/verify', {
+                method:      'POST',
+                credentials: 'same-origin',
+                headers:     { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_order_id:   response.razorpay_order_id,
+                  razorpay_signature:  response.razorpay_signature,
+                  email:          email,
+                  street_address: street,
+                  zip_code:       zip,
+                  city:           city,
+                  state:          state,
+                  country:        country,
+                  currency:       currency,
+                }),
+              })
+              .then(function (res) {
+                if (!res.ok) {
+                  return res.json().then(function (d) {
+                    throw new Error(d.error || 'Verification failed');
+                  });
+                }
+                return res.json();
+              })
+              .then(function (result) {
+                // Redirect to order confirmation page
+                window.location.href = baseUrl + '/order-confirm?orderId=' + encodeURIComponent(result.orderId) +
+                  '&txnId=' + encodeURIComponent(result.transactionId);
+              })
+              .catch(function (err) {
+                alert('Payment was received by Razorpay but the order could not be placed:\n' +
+                  err.message +
+                  '\n\nPlease contact support and quote payment ID: ' + response.razorpay_payment_id);
+                payBtn.disabled    = false;
+                payBtn.textContent = 'Place Order & Pay';
+              });
+            },
+
+            modal: {
+              ondismiss: function () {
+                payBtn.disabled    = false;
+                payBtn.textContent = 'Place Order & Pay';
+              },
+            },
+          };
+
+          var rzp = new Razorpay(options);
+          rzp.on('payment.failed', function (response) {
+            alert('Payment failed: ' + (response.error.description || 'Unknown error') +
+              '\nError code: ' + response.error.code);
+            payBtn.disabled    = false;
+            payBtn.textContent = 'Place Order & Pay';
+          });
+          rzp.open();
+        })
+        .catch(function (err) {
+          alert('Could not initiate payment: ' + err.message);
+          payBtn.disabled    = false;
+          payBtn.textContent = 'Place Order & Pay';
+        });
+      });
+
+    }());
+    </script>
 {{ end }}

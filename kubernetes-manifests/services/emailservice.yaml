@@ -24,7 +24,7 @@ spec:
       terminationGracePeriodSeconds: 5
       containers:
       - name: server
-        image: cazzzzz/trf-emailservice-hipster:latest
+        image: abhinavbabu33/trf-emailservice-hipster:latest
         ports:
         - containerPort: 8080
         envFrom:
@@ -57,7 +57,7 @@ spec:
               name: mongodb-config
               key: NOTIFICATION_EMAIL_EVENTS_COLLECTION
         - name: MONGO_URI
-          value: "mongodb://$(MONGO_USERNAME):$(MONGO_PASSWORD)@mongodb-0.mongo-headless.hipster-database.svc.cluster.local:27017,mongodb-1.mongo-headless.hipster-database.svc.cluster.local:27017,mongodb-2.mongo-headless.hipster-database.svc.cluster.local:27017/notification_db?replicaSet=rs0&authSource=notification_db&authMechanism=SCRAM-SHA-256"
+          value: "mongodb://$(MONGO_USERNAME):$(MONGO_PASSWORD)@mongodb-0.mongo-headless.hipster-database.svc.cluster.local:27017,mongodb-1.mongo-headless.hipster-database.svc.cluster.local:27017/notification_db?replicaSet=rs0&authSource=notification_db&authMechanism=SCRAM-SHA-256"
         readinessProbe:
           periodSeconds: 5
           httpGet:
