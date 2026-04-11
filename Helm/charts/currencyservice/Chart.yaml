@@ -1,5 +1,6 @@
 apiVersion: v2
 name: currencyservice
-description: Currency service sub-chart
+description: Currency service sub-chart — currency conversion and listing
 type: application
 version: 1.0.0
+appVersion: "2.0.0"

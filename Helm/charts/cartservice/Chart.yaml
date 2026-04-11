@@ -1,5 +1,6 @@
 apiVersion: v2
 name: cartservice
-description: Cart service sub-chart
+description: Cart service sub-chart — shopping cart backed by MongoDB
 type: application
 version: 1.0.0
+appVersion: "2.0.0"

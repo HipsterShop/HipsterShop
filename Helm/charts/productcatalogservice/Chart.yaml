@@ -1,5 +1,6 @@
 apiVersion: v2
 name: productcatalogservice
-description: Product catalog service sub-chart
+description: Product catalog service sub-chart — product listing and search backed by MongoDB
 type: application
 version: 1.0.0
+appVersion: "2.0.0"

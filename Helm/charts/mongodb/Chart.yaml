@@ -1,5 +1,8 @@
 apiVersion: v2
 name: mongodb
-description: MongoDB database sub-chart
+description: |
+  MongoDB sub-chart — hipster-database namespace, StatefulSet (3-replica rs0),
+  headless Service, Secrets, init Job, seed/migrate Jobs, NetworkPolicy.
 type: application
 version: 1.0.0
+appVersion: "7.0"

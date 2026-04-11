@@ -1,7 +1,8 @@
 apiVersion: v2
 name: hipstershop
 description: |
-  HipsterShop - Multi-namespace microservices e-commerce platform
+  HipsterShop — Multi-namespace microservices e-commerce platform.
+  Umbrella chart: installs all 16 sub-charts with a single helm command.
 type: application
 version: 2.0.0
 appVersion: "2.0.0"
@@ -12,9 +13,138 @@ keywords:
   - mongodb
   - kgateway
   - namespace-isolation
+  - umbrella-chart
 maintainers:
   - name: Team 4
 home: https://github.com/Yampss/HipsterShop
 sources:
   - https://github.com/Yampss/HipsterShop
-dependencies: []
+
+# ── Sub-chart Dependencies ─────────────────────────────────────────────────
+# All sub-charts live in charts/ as plain directories — no `helm dependency
+# update` is required. The entries below enable Helm's condition (enable/
+# disable) and tags system; charts are installed in resource-kind order
+# (Namespace → ConfigMap → Secret → Deployment → Service) by Helm itself.
+#
+# Toggle any chart off at deploy-time:
+#   helm upgrade --install hipstershop ./Helm \
+#     --set charts.loadgenerator.enabled=false
+# ──────────────────────────────────────────────────────────────────────────
+dependencies:
+
+  # ── Infrastructure tier (creates Namespaces, Secrets, ConfigMaps) ────────
+  - name: backend-common
+    version: "1.0.0"
+    repository: "file://charts/backend-common"
+    condition: charts.backend-common.enabled
+    tags:
+      - infrastructure
+
+  - name: mongodb
+    version: "1.0.0"
+    repository: "file://charts/mongodb"
+    condition: charts.mongodb.enabled
+    tags:
+      - infrastructure
+      - database
+
+  # ── Frontend tier ────────────────────────────────────────────────────────
+  - name: frontend
+    version: "1.0.0"
+    repository: "file://charts/frontend"
+    condition: charts.frontend.enabled
+    tags:
+      - frontend
+
+  - name: loadgenerator
+    version: "1.0.0"
+    repository: "file://charts/loadgenerator"
+    condition: charts.loadgenerator.enabled
+    tags:
+      - frontend
+
+  # ── Gateway (GatewayClass + Gateway + HTTPRoutes) ────────────────────────
+  - name: gateway
+    version: "1.0.0"
+    repository: "file://charts/gateway"
+    condition: charts.gateway.enabled
+    tags:
+      - gateway
+
+  # ── Backend microservices ─────────────────────────────────────────────────
+  - name: adservice
+    version: "1.0.0"
+    repository: "file://charts/adservice"
+    condition: charts.adservice.enabled
+    tags:
+      - backend
+
+  - name: assistantservice
+    version: "1.0.0"
+    repository: "file://charts/assistantservice"
+    condition: charts.assistantservice.enabled
+    tags:
+      - backend
+
+  - name: authservice
+    version: "1.0.0"
+    repository: "file://charts/authservice"
+    condition: charts.authservice.enabled
+    tags:
+      - backend
+
+  - name: cartservice
+    version: "1.0.0"
+    repository: "file://charts/cartservice"
+    condition: charts.cartservice.enabled
+    tags:
+      - backend
+
+  - name: checkoutservice
+    version: "1.0.0"
+    repository: "file://charts/checkoutservice"
+    condition: charts.checkoutservice.enabled
+    tags:
+      - backend
+
+  - name: currencyservice
+    version: "1.0.0"
+    repository: "file://charts/currencyservice"
+    condition: charts.currencyservice.enabled
+    tags:
+      - backend
+
+  - name: emailservice
+    version: "1.0.0"
+    repository: "file://charts/emailservice"
+    condition: charts.emailservice.enabled
+    tags:
+      - backend
+
+  - name: paymentservice
+    version: "1.0.0"
+    repository: "file://charts/paymentservice"
+    condition: charts.paymentservice.enabled
+    tags:
+      - backend
+
+  - name: productcatalogservice
+    version: "1.0.0"
+    repository: "file://charts/productcatalogservice"
+    condition: charts.productcatalogservice.enabled
+    tags:
+      - backend
+
+  - name: recommendationservice
+    version: "1.0.0"
+    repository: "file://charts/recommendationservice"
+    condition: charts.recommendationservice.enabled
+    tags:
+      - backend
+
+  - name: shippingservice
+    version: "1.0.0"
+    repository: "file://charts/shippingservice"
+    condition: charts.shippingservice.enabled
+    tags:
+      - backend

@@ -1,5 +1,9 @@
 apiVersion: v2
 name: backend-common
-description: Shared backend resources (namespace, configmaps, secrets, network policy)
+description: |
+  Shared backend infrastructure sub-chart.
+  Provisions: hipster-backend namespace, ConfigMaps, Secrets, NetworkPolicy.
+  Must be installed before other backend microservice charts.
 type: application
 version: 1.0.0
+appVersion: "2.0.0"

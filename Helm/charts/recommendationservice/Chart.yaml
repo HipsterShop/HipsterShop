@@ -1,5 +1,6 @@
 apiVersion: v2
 name: recommendationservice
-description: Recommendation service sub-chart
+description: Recommendation service sub-chart — product recommendation engine
 type: application
 version: 1.0.0
+appVersion: "2.0.0"

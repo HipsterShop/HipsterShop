@@ -1,5 +1,8 @@
 apiVersion: v2
 name: frontend
-description: Frontend microservice sub-chart
+description: |
+  Frontend sub-chart — React SPA; hipster-frontend namespace, ConfigMaps,
+  Secrets, Deployment, Service, HPA, NetworkPolicy, ReferenceGrant.
 type: application
 version: 1.0.0
+appVersion: "2.0.0"

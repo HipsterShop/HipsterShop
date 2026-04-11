@@ -1,5 +1,6 @@
 apiVersion: v2
 name: adservice
-description: Ad service sub-chart
+description: Ad service sub-chart — serves advertisement content
 type: application
 version: 1.0.0
+appVersion: "2.0.0"

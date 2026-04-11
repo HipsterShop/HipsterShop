@@ -1,5 +1,6 @@
 apiVersion: v2
 name: paymentservice
-description: Payment service sub-chart
+description: Payment service sub-chart — credit card charge processing
 type: application
 version: 1.0.0
+appVersion: "2.0.0"

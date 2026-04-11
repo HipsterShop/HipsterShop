@@ -1,5 +1,8 @@
 apiVersion: v2
 name: gateway
-description: Gateway and HTTPRoutes sub-chart
+description: |
+  Gateway sub-chart — GatewayClass, Gateway (kgateway), and all HTTPRoutes
+  for every backend and frontend service.
 type: application
 version: 1.0.0
+appVersion: "2.0.0"

@@ -1,32 +1,52 @@
-# ═══════════════════════════════════════════════════════════════════
-#  HipsterShop — Global Values (Single source of truth)
-# ═══════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════
+#  HipsterShop — Umbrella Chart Values
+#  Single source of truth for all 16 sub-charts.
+#
+#  Sub-charts read from the global: block automatically via Helm's
+#  global value propagation mechanism — no per-chart overrides needed.
+#
+#  Per-chart enable/disable toggles live at the bottom under charts:
+#  Usage:
+#    # Install everything (default)
+#    helm upgrade --install hipstershop ./Helm
+#
+#    # Disable a specific chart
+#    helm upgrade --install hipstershop ./Helm \
+#      --set charts.loadgenerator.enabled=false
+#
+#    # Disable an entire tier with tags
+#    helm upgrade --install hipstershop ./Helm \
+#      --set tags.backend=false
+# ═══════════════════════════════════════════════════════════════════════════
 
 global:
-  # ── Namespace Isolation ──────────────────────────────────────────
+
+  # ── Namespace Isolation ──────────────────────────────────────────────────
+  # Three isolated namespaces — each has its own NetworkPolicy.
   namespaces:
     frontend: hipster-frontend
-    backend: hipster-backend
+    backend:  hipster-backend
     database: hipster-database
 
-  # ── Container Images ────────────────────────────────────────────
+  # ── Container Images ─────────────────────────────────────────────────────
+  # Override any image tag here without touching templates.
   images:
-    adservice:              cazzzzz/trf-adservice-hipster:latest
-    assistantservice:       cazzzzz/trf-assistantservice-hipster:latest
-    authservice:            cazzzzz/trf-authservice-hipster:latest
-    cartservice:            cazzzzz/trf-cartservice-hipster:v1
-    checkoutservice:        cazzzzz/trf-checkoutservice-hipster:latest
-    currencyservice:        cazzzzz/trf-currencyservice-hipster:latest
-    emailservice:           cazzzzz/trf-emailservice-hipster:latest
-    frontend:               cazzzzz/trf-frontend-hipster:v2
-    paymentservice:         cazzzzz/trf-paymentservice-hipster:latest
-    productcatalogservice:  cazzzzz/trf-productcatalogservice-hipster:v1
-    recommendationservice:  cazzzzz/trf-recommendationservice-hipster:latest
-    shippingservice:        cazzzzz/trf-shippingservice-hipster:latest
-    mongodb:                mongo:7.0
-    loadgenerator:          busybox:1.28
+    adservice:             cazzzzz/trf-adservice-hipster:latest
+    assistantservice:      cazzzzz/trf-assistantservice-hipster:latest
+    authservice:           cazzzzz/trf-authservice-hipster:latest
+    cartservice:           cazzzzz/trf-cartservice-hipster:v1
+    checkoutservice:       cazzzzz/trf-checkoutservice-hipster:latest
+    currencyservice:       cazzzzz/trf-currencyservice-hipster:latest
+    emailservice:          cazzzzz/trf-emailservice-hipster:latest
+    frontend:              cazzzzz/trf-frontend-hipster:v2
+    paymentservice:        cazzzzz/trf-paymentservice-hipster:latest
+    productcatalogservice: cazzzzz/trf-productcatalogservice-hipster:v1
+    recommendationservice: cazzzzz/trf-recommendationservice-hipster:latest
+    shippingservice:       cazzzzz/trf-shippingservice-hipster:latest
+    mongodb:               mongo:7.0
+    loadgenerator:         busybox:1.28
 
-  # ── Replicas ────────────────────────────────────────────────────
+  # ── Replica Counts ────────────────────────────────────────────────────────
   replicas:
     adservice:             2
     assistantservice:      2
@@ -42,12 +62,12 @@ global:
     shippingservice:       2
     loadgenerator:         3
 
-  # ── Rolling Update Strategy ─────────────────────────────────────
+  # ── Rolling Update Strategy ───────────────────────────────────────────────
   rollingUpdate:
     maxUnavailable: 1
-    maxSurge: 1
+    maxSurge:       1
 
-  # ── Service Ports ───────────────────────────────────────────────
+  # ── Service Ports ────────────────────────────────────────────────────────
   ports:
     adservice:             9555
     authservice:           8081
@@ -63,20 +83,22 @@ global:
     shippingservice:       50051
     assistantservice:      8080
 
-  # ── Secrets ─────────────────────────────────────────────────────
+  # ── Secrets ──────────────────────────────────────────────────────────────
+  # Replace geminiApiKey with a real key before deploying.
   secrets:
     jwtSecret:    "team4hipstershopsecret"
     geminiApiKey: "REPLACE_WITH_GEMINI_API_KEY"
 
-  # ── MongoDB ─────────────────────────────────────────────────────
+  # ── MongoDB StatefulSet ───────────────────────────────────────────────────
   mongodb:
-    replicas:         3
-    storageClass:     nfs
-    storageSize:      5Gi
-    replicaSetName:   rs0
-    initDatabase:     shopdb
-    rootUsername:     admin
-    rootPassword:     mongopassword
+    replicas:       3
+    storageClass:   nfs
+    storageSize:    5Gi
+    replicaSetName: rs0
+    initDatabase:   shopdb
+    rootUsername:   admin
+    rootPassword:   mongopassword
+    # Per-service MongoDB users and databases
     users:
       auth:
         username: auth_user
@@ -107,21 +129,21 @@ global:
         password: analytics_password
         database: analytics_db
 
-  # ── App Configuration ───────────────────────────────────────────
+  # ── Application Configuration ─────────────────────────────────────────────
   appConfig:
     enableTracing:        "1"
     collectorServiceAddr: "jaeger:4317"
     frontendMessage:      "Checkout HipsterShop today!"
     enableAssistant:      "true"
 
-  # ── Feature Flags ───────────────────────────────────────────────
+  # ── Feature Flags ─────────────────────────────────────────────────────────
   features:
-    currencyServiceRandomError:      "1"
-    paymentServiceDisableProfiler:   "1"
-    productCatalogSeedDatabase:      "true"
-    geminiModel:                     "gemini-2.5-flash"
+    currencyServiceRandomError:    "1"
+    paymentServiceDisableProfiler: "1"
+    productCatalogSeedDatabase:    "true"
+    geminiModel:                   "gemini-2.5-flash"
 
-  # ── MongoDB Config ──────────────────────────────────────────────
+  # ── MongoDB Collection / Database Names ───────────────────────────────────
   mongodbConfig:
     replicaSet:                         rs0
     catalogProductsCollection:          products
@@ -131,29 +153,26 @@ global:
     analyticsRecommendationsCollection: recommendations
     notificationEmailEventsCollection:  email_events
 
-  # ── Gateway ─────────────────────────────────────────────────────
+  # ── Gateway ───────────────────────────────────────────────────────────────
   gateway:
     name:             hipstershop-gateway
     gatewayClassName: kgateway
     port:             80
 
-  # ── Network Policy ──────────────────────────────────────────────
+  # ── Network Policy ────────────────────────────────────────────────────────
+  # Controls ingress CIDR for the HAProxy reverse-proxy and the kgateway
+  # control-plane namespace. Update vpcCidr to a /32 for a single host.
   networkPolicy:
-    # VPC CIDR for HAProxy / external reverse-proxy ingress to kgateway.
-    # Use a /32 for a single host (e.g. "172.31.77.99/32") or a /16 for the
-    # full VPC (e.g. "172.31.0.0/16"). Change this to match your environment.
-    vpcCidr: "172.31.0.0/16"
-    # Namespace that kgateway is installed into (default: kgateway-system).
-    # Update this if your kgateway uses a different namespace.
+    vpcCidr:           "172.31.0.0/16"
     kgatewayNamespace: "kgateway-system"
 
-  # ── HPA ─────────────────────────────────────────────────────────
+  # ── Horizontal Pod Autoscaler ─────────────────────────────────────────────
   hpa:
     frontend:
-      minReplicas:        2
-      maxReplicas:        5
-      cpuUtilization:     70
-      memoryUtilization:  80
+      minReplicas:       2
+      maxReplicas:       5
+      cpuUtilization:    70
+      memoryUtilization: 80
       scaleDown:
         stabilizationWindowSeconds: 20
         percentValue:               50
@@ -164,7 +183,7 @@ global:
         podsValue:                  2
         periodSeconds:              15
 
-  # ── Resources ───────────────────────────────────────────────────
+  # ── Resource Requests & Limits ────────────────────────────────────────────
   resources:
     standard:
       requests:
@@ -201,3 +220,74 @@ global:
       limits:
         cpu:    500m
         memory: 512Mi
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  Per-chart Enable / Disable Toggles
+#  ─────────────────────────────────
+#  Set any chart's enabled flag to false to skip it during install/upgrade.
+#  These map directly to the `condition:` fields in Chart.yaml.
+#
+#  Examples:
+#    --set charts.loadgenerator.enabled=false   # skip load generator
+#    --set charts.assistantservice.enabled=false # skip Gemini assistant
+#
+#  Tag-level toggles (disable an entire tier):
+#    --set tags.backend=false       # skip all backend microservices
+#    --set tags.frontend=false      # skip frontend + loadgenerator
+#    --set tags.infrastructure=false # skip backend-common + mongodb
+#    --set tags.gateway=false       # skip gateway + routes
+# ═══════════════════════════════════════════════════════════════════════════
+
+charts:
+
+  # ── Infrastructure tier ──────────────────────────────────────────────────
+  backend-common:
+    enabled: true   # Namespaces, ConfigMaps, Secrets, backend NetworkPolicy
+
+  mongodb:
+    enabled: true   # StatefulSet (3-replica rs0), init/seed Jobs, DB NetworkPolicy
+
+  # ── Frontend tier ────────────────────────────────────────────────────────
+  frontend:
+    enabled: true   # Deployment, Service, HPA, ConfigMaps, frontend NetworkPolicy
+
+  loadgenerator:
+    enabled: true   # Synthetic traffic generator (disable in production)
+
+  # ── Gateway tier ─────────────────────────────────────────────────────────
+  gateway:
+    enabled: true   # GatewayClass, Gateway, all HTTPRoutes
+
+  # ── Backend microservices ─────────────────────────────────────────────────
+  adservice:
+    enabled: true
+
+  assistantservice:
+    enabled: true   # Requires a valid geminiApiKey in global.secrets
+
+  authservice:
+    enabled: true
+
+  cartservice:
+    enabled: true
+
+  checkoutservice:
+    enabled: true
+
+  currencyservice:
+    enabled: true
+
+  emailservice:
+    enabled: true
+
+  paymentservice:
+    enabled: true
+
+  productcatalogservice:
+    enabled: true
+
+  recommendationservice:
+    enabled: true
+
+  shippingservice:
+    enabled: true

@@ -1,5 +1,6 @@
 apiVersion: v2
 name: authservice
-description: Auth service sub-chart
+description: Auth service sub-chart — JWT-based authentication and user management
 type: application
 version: 1.0.0
+appVersion: "2.0.0"

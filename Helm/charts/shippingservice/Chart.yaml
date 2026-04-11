@@ -1,5 +1,6 @@
 apiVersion: v2
 name: shippingservice
-description: Shipping service sub-chart
+description: Shipping service sub-chart — shipping cost estimation and order tracking
 type: application
 version: 1.0.0
+appVersion: "2.0.0"
