@@ -1,0 +1,29 @@
+name: productcatalogservice CI
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/productcatalogservice/**'
+      - '.github/workflows/productcatalogservice.yaml'
+      - '.github/workflows/template.yaml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'src/productcatalogservice/**'
+      - '.github/workflows/productcatalogservice.yaml'
+      - '.github/workflows/template.yaml'
+
+jobs:
+  call-template:
+    uses: ./.github/workflows/template.yaml
+    with:
+      service_name: productcatalogservice
+      service_path: src/productcatalogservice
+      runtime: go
+      go-version: "1.22"
+    secrets:
+      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

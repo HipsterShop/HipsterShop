@@ -1,0 +1,29 @@
+name: authservice CI
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/authservice/**'
+      - '.github/workflows/authservice.yaml'
+      - '.github/workflows/template.yaml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'src/authservice/**'
+      - '.github/workflows/authservice.yaml'
+      - '.github/workflows/template.yaml'
+
+jobs:
+  call-template:
+    uses: ./.github/workflows/template.yaml
+    with:
+      service_name: authservice
+      service_path: src/authservice
+      runtime: go
+      go-version: "1.22"
+    secrets:
+      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

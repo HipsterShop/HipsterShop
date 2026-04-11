@@ -1,0 +1,29 @@
+name: emailservice CI
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/emailservice/**'
+      - '.github/workflows/emailservice.yaml'
+      - '.github/workflows/template.yaml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'src/emailservice/**'
+      - '.github/workflows/emailservice.yaml'
+      - '.github/workflows/template.yaml'
+
+jobs:
+  call-template:
+    uses: ./.github/workflows/template.yaml
+    with:
+      service_name: emailservice
+      service_path: src/emailservice
+      runtime: python
+      python-version: "3.11"
+    secrets:
+      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

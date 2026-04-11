@@ -1,0 +1,216 @@
+name: template
+
+on:
+  workflow_call:
+    inputs:
+      service_name:
+        required: true
+        type: string
+      service_path:
+        required: true
+        type: string
+      runtime:
+        required: true
+        type: string
+      node-version:
+        required: false
+        type: string
+        default: "20"
+      python-version:
+        required: false
+        type: string
+        default: "3.11"
+      go-version:
+        required: false
+        type: string
+        default: "1.22"
+      java-version:
+        required: false
+        type: string
+        default: "21"
+      dotnet-version:
+        required: false
+        type: string
+        default: "8.0"
+    
+    
+    
+    secrets:
+      SNYK_TOKEN:
+        required: true
+      SONAR_TOKEN:
+        required: true
+
+
+jobs:
+  pipeline:
+    name: "ci of ${{ inputs.service_name }}"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.service_path }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: nodejs setup
+        if: inputs.runtime == 'node'
+        uses: actions/setup-node@v4
+        with: 
+          node-version: ${{ inputs.node-version }}
+          cache: npm
+          cache-dependency-path: "${{ inputs.service_path }}/package-lock.json"
+      - name: python setup 
+        if: inputs.runtime == 'python'
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+          cache: "pip"
+
+      - name: java
+        if: inputs.runtime == 'java'
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: ${{ inputs.java-version }}
+          cache: "maven"
+      - name: Setup .NET
+        if: inputs.runtime == 'dotnet'
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ inputs.dotnet-version }}
+          
+
+      - name: node dependencies
+        if: inputs.runtime == 'node'
+        run: npm ci
+
+      - name: python dependencies
+        if: inputs.runtime == 'python'
+        run: pip install -r requirements.txt
+
+      - name: go modules
+        if: inputs.runtime == 'go'
+        run: go mod download
+
+      - name: build go
+        if: inputs.runtime == 'go'
+        run: go build ./...
+
+      - name: build java
+        if: inputs.runtime == 'java'
+        run: mvn -B package --no-transfer-progress
+        
+
+      - name: Build .NET
+        if: inputs.runtime == 'dotnet'
+        run: dotnet build --configuration Release --no-restore
+
+      # node and python don't have a separate compile step they go straight to tests below.
+
+      - name: Test node
+        if: inputs.runtime == 'node'
+        run: npm test -- --passWithNoTests
+
+      - name: Test python
+        if: inputs.runtime == 'python'
+        run: |
+          pip install pytest
+          pytest --tb=short || true
+
+      - name: Test go
+        if: inputs.runtime == 'go'
+        run: go test ./... -v
+
+      - name: Test Java 
+        if: inputs.runtime == 'java'
+        run: mvn -B test --no-transfer-progress
+
+      - name: Test .NET
+        if: inputs.runtime == 'dotnet'
+        run: dotnet test --no-build --configuration Release --verbosity normal
+
+
+      - name: Check unused dependencies (Node)
+        if: inputs.runtime == 'node'
+        run: npx depcheck || true
+
+      - name: Lint (Go — go vet)
+        if: inputs.runtime == 'go'
+        run: go vet ./...
+
+      - name: Lint (.NET — format check)
+        if: inputs.runtime == 'dotnet'
+        run: dotnet format --verify-no-changes || true
+
+      - name: Setup Snyk CLI
+        uses: snyk/actions/setup@master
+
+      - name: Install snyk-to-html
+        run: npm install -g snyk-to-html   
+
+      - name: Snyk scan (Node)
+        if: inputs.runtime == 'node'
+        run: snyk test --severity-threshold=high --json-file-output=snyk-report.json || true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+      - name: Convert Snyk report to HTML (Node)
+        if: inputs.runtime == 'node'
+        run: snyk-to-html -i snyk-report.json -o snyk-report.html
+
+  
+      - name: Snyk scan (Python)
+        if: inputs.runtime == 'python'
+        run: snyk test --file=requirements.txt --package-manager=pip --severity-threshold=high --json-file-output=snyk-report.json || true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+      - name: Convert Snyk report to HTML (Python)
+        if: inputs.runtime == 'python'
+        run: snyk-to-html -i snyk-report.json -o snyk-report.html
+
+      - name: Snyk scan (Go)
+        if: inputs.runtime == 'go'
+        run: snyk test --file=go.mod --severity-threshold=high --json-file-output=snyk-report.json || true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+      - name: Convert Snyk report to HTML (Go)
+        if: inputs.runtime == 'go'
+        run: snyk-to-html -i snyk-report.json -o snyk-report.html
+
+      - name: Snyk scan (Java / Gradle)
+        if: inputs.runtime == 'java'
+        run: snyk test --file=pom.xml --severity-threshold=high --json-file-output=snyk-report.json || true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+      - name: Convert Snyk report to HTML (Java)
+        if: inputs.runtime == 'java'
+        run: snyk-to-html -i snyk-report.json -o snyk-report.html
+
+      - name: Snyk scan (.NET)
+        if: inputs.runtime == 'dotnet'
+        run: snyk test --file=$(ls *.csproj | head -1) --severity-threshold=high --json-file-output=snyk-report.json || true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+      - name: Convert Snyk report to HTML (.NET)
+        if: inputs.runtime == 'dotnet'
+        run: snyk-to-html -i snyk-report.json -o snyk-report.html
+
+      - name: Upload Snyk HTML report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: snyk-report-${{ inputs.service_name }}
+          path: ${{ inputs.service_path }}/snyk-report.html
+          retention-days: 14
+
+      - name: SonarQube scan
+        uses: SonarSource/sonarqube-scan-action@v6
+        with:
+          projectBaseDir: ${{ inputs.service_path }}
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: "${{ secrets.SONAR_TOKEN }}:9000"  
+

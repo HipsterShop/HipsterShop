@@ -1,0 +1,29 @@
+name: currencyservice CI
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/currencyservice/**'
+      - '.github/workflows/currencyservice.yaml'
+      - '.github/workflows/template.yaml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'src/currencyservice/**'
+      - '.github/workflows/currencyservice.yaml'
+      - '.github/workflows/template.yaml'
+
+jobs:
+  call-template:
+    uses: ./.github/workflows/template.yaml
+    with:
+      service_name: currencyservice
+      service_path: src/currencyservice
+      runtime: node
+      node-version: "20"
+    secrets:
+      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

@@ -1,0 +1,29 @@
+name: paymentservice CI
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/paymentservice/**'
+      - '.github/workflows/paymentservice.yaml'
+      - '.github/workflows/template.yaml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'src/paymentservice/**'
+      - '.github/workflows/paymentservice.yaml'
+      - '.github/workflows/template.yaml'
+
+jobs:
+  call-template:
+    uses: ./.github/workflows/template.yaml
+    with:
+      service_name: paymentservice
+      service_path: src/paymentservice
+      runtime: node
+      node-version: "20"
+    secrets:
+      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

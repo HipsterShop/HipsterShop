@@ -1,0 +1,29 @@
+name: assistantservice CI
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/assistantservice/**'
+      - '.github/workflows/assistantservice.yaml'
+      - '.github/workflows/template.yaml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'src/assistantservice/**'
+      - '.github/workflows/assistantservice.yaml'
+      - '.github/workflows/template.yaml'
+
+jobs:
+  call-template:
+    uses: ./.github/workflows/template.yaml
+    with:
+      service_name: assistantservice
+      service_path: src/assistantservice
+      runtime: python
+      python-version: "3.11"
+    secrets:
+      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
