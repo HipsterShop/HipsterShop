@@ -1,3 +1,4 @@
+# ── Default deny all traffic in hipster-backend ──────────────────
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -8,7 +9,9 @@ spec:
   policyTypes:
   - Ingress
   - Egress
+
 ---
+# ── Allow required backend traffic ───────────────────────────────
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -20,23 +23,51 @@ spec:
   - Ingress
   - Egress
   ingress:
+  # Allow from HAProxy EC2 instance -> kgateway (external reverse proxy)
+  # Using /32 (single host) for least-privilege. If your HAProxy instance IP
+  # changes or you have multiple HAProxy nodes, switch to 172.31.0.0/16 (full VPC).
+  - from:
+    - ipBlock:
+        # cidr: 172.31.77.99/32   # HAProxy private IP — change if needed
+        cidr: {{ .Values.global.networkPolicy.vpcCidr | default "172.31.0.0/16" }}   # uncomment this (and remove line above) to allow full VPC
+  # Allow from hipster-frontend (frontend -> gateway)
   - from:
     - namespaceSelector:
         matchLabels:
           name: {{ .Values.global.namespaces.frontend }}
+  # Allow within hipster-backend (inter-service + gateway routing)
   - from:
     - podSelector: {}
   egress:
+  # Allow to hipster-database (backend services -> MongoDB)
   - to:
     - namespaceSelector:
         matchLabels:
           name: {{ .Values.global.namespaces.database }}
+  # Allow within hipster-backend (inter-service communication)
   - to:
     - podSelector: {}
+  # Allow to hipster-frontend (gateway -> frontend service)
   - to:
     - namespaceSelector:
         matchLabels:
           name: {{ .Values.global.namespaces.frontend }}
+  # Allow to kgateway control-plane (envoy xDS config)
+  # Default kgateway install namespace is 'gloo-system'.
+  # If yours differs, update the label below to match your actual namespace.
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: {{ .Values.global.networkPolicy.kgatewayNamespace | default "kgateway-system" }}
+  # Allow to kube-apiserver (kgateway controller watches K8s resources)
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+    ports:
+    - protocol: TCP
+      port: 443
+  # DNS resolution
   - to:
     - namespaceSelector: {}
     ports:

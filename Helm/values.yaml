@@ -137,6 +137,16 @@ global:
     gatewayClassName: kgateway
     port:             80
 
+  # ── Network Policy ──────────────────────────────────────────────
+  networkPolicy:
+    # VPC CIDR for HAProxy / external reverse-proxy ingress to kgateway.
+    # Use a /32 for a single host (e.g. "172.31.77.99/32") or a /16 for the
+    # full VPC (e.g. "172.31.0.0/16"). Change this to match your environment.
+    vpcCidr: "172.31.0.0/16"
+    # Namespace that kgateway is installed into (default: kgateway-system).
+    # Update this if your kgateway uses a different namespace.
+    kgatewayNamespace: "kgateway-system"
+
   # ── HPA ─────────────────────────────────────────────────────────
   hpa:
     frontend:
