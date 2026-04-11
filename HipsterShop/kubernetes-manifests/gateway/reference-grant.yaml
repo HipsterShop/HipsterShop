@@ -1,0 +1,14 @@
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: allow-backend-routes-to-frontend
+  namespace: hipster-frontend
+spec:
+  from:
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    namespace: hipster-backend
+  to:
+  - group: ""
+    kind: Service
+    name: frontend   # restrict to ONLY the frontend Service, not all Services in hipster-frontend

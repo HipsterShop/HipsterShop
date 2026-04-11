@@ -1,0 +1,178 @@
+<!--
+ Copyright 2020 Google LLC
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+-->
+
+{{ define "product" }}
+{{ template "header" . }}
+<main role="main">
+  <div class="h-product container">
+    <div class="row">
+      <div class="col-md-6">
+        <img class="product-image" alt="" src="{{ $.baseUrl }}{{$.product.Item.Picture}}" />
+      </div>
+      <div class="product-info col-md-5">
+        <div class="product-wrapper">
+
+          <h2>{{ $.product.Item.Name }}</h2>
+          <p class="product-price">{{ renderMoney $.product.Price }}</p>
+          <p>{{ $.product.Item.Description }}</p>
+
+          {{ if $.assistant_enabled }}
+          <div class="product-assistant" id="product-assistant" data-base-url="{{ $.baseUrl }}" data-product-id="{{ $.product.Item.Id }}">
+            <h3>Ask AI About This Product</h3>
+            <div class="product-assistant-messages" id="assistant-messages">
+              <div class="bot-message" id="assistant-summary">Generating a quick summary...</div>
+            </div>
+            <form class="product-assistant-form" id="assistant-form">
+              <input
+                type="text"
+                class="bot-input-text"
+                id="assistant-input"
+                placeholder="Ask about fit, use case, materials, or care..."
+                maxlength="300"
+                aria-label="Ask AI about this product"
+              />
+              <button type="submit" class="cymbal-button-primary">Ask</button>
+            </form>
+          </div>
+          {{ end }}
+
+          {{ if $.packagingInfo }}
+          <div class="product-packaging">
+            <h3>Packaging</h3>
+            <span>
+              Weight: {{ if $.packagingInfo.Weight }}{{ $.packagingInfo.Weight }}lb{{ else }}n/a{{ end }}
+            </span>
+            <span>
+              Width: {{ if $.packagingInfo.Width }}{{ $.packagingInfo.Width }}cm{{ else }}n/a{{ end }}
+            </span>
+            <span>
+              Height: {{ if $.packagingInfo.Height }}{{ $.packagingInfo.Height }}cm{{ else }}n/a{{ end }}
+            </span>
+            <span>
+              Depth: {{ if $.packagingInfo.Depth }}{{ $.packagingInfo.Depth }}cm{{ else }}n/a{{ end }}
+            </span>
+          </div>
+          {{ end }}
+
+          <form method="POST" action="{{ $.baseUrl }}/cart">
+            <input type="hidden" name="product_id" value="{{$.product.Item.Id}}" />
+            <div class="product-quantity-dropdown">
+              <select name="quantity" id="quantity">
+                <option>1</option>
+                <option>2</option>
+                <option>3</option>
+                <option>4</option>
+                <option>5</option>
+                <option>10</option>
+              </select>
+              <img src="{{ $.baseUrl }}/static/icons/Hipster_DownArrow.svg" alt="">
+            </div>
+            <button type="submit" class="cymbal-button-primary">Add To Cart</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div>
+    {{ if $.recommendations}}
+      {{ template "recommendations" $ }}
+    {{ end }}
+  </div>
+  <div class="ad">
+   {{ if $.ad }}{{ template "text_ad" $ }}{{ end }}
+  </div>
+
+</main>
+{{ if $.assistant_enabled }}
+<script>
+  (function () {
+    const root = document.getElementById('product-assistant');
+    if (!root) return;
+
+    const baseUrl = root.getAttribute('data-base-url') || '';
+    const productId = root.getAttribute('data-product-id');
+    const messages = document.getElementById('assistant-messages');
+    const summaryEl = document.getElementById('assistant-summary');
+    const form = document.getElementById('assistant-form');
+    const input = document.getElementById('assistant-input');
+
+    function addMessage(text, isUser) {
+      const bubble = document.createElement('div');
+      bubble.className = isUser ? 'user-message' : 'bot-message';
+      if (isUser) {
+        const p = document.createElement('p');
+        p.className = 'user-message-text';
+        p.textContent = text;
+        bubble.appendChild(p);
+      } else {
+        bubble.textContent = text;
+      }
+      messages.appendChild(bubble);
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    async function sendAssistantMessage(message) {
+      const res = await fetch(baseUrl + '/api/assistant/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productId: productId, message: message })
+      });
+      if (!res.ok) {
+        throw new Error('Assistant unavailable');
+      }
+      const data = await res.json();
+      return (data.reply || '').trim();
+    }
+
+    sendAssistantMessage('')
+      .then((reply) => {
+        summaryEl.textContent = reply || 'AI summary is not available right now.';
+      })
+      .catch(() => {
+        summaryEl.textContent = 'AI summary is currently unavailable. You can still shop using product details above, or ask specific questions like fit, climate, materials, and use case.';
+      });
+
+    form.addEventListener('submit', async function (event) {
+      event.preventDefault();
+      const question = input.value.trim();
+      if (!question) return;
+
+      addMessage(question, true);
+      input.value = '';
+      input.disabled = true;
+
+      const loading = document.createElement('div');
+      loading.className = 'bot-message';
+      loading.textContent = 'Thinking...';
+      messages.appendChild(loading);
+
+      try {
+        const reply = await sendAssistantMessage(question);
+        loading.remove();
+        addMessage(reply || 'No response received. Please try again.', false);
+      } catch (_err) {
+        loading.remove();
+        addMessage('Assistant is currently unavailable. Try again shortly, or ask a more specific question such as fit, comfort, climate, or daily use.', false);
+      } finally {
+        input.disabled = false;
+        input.focus();
+      }
+    });
+  })();
+</script>
+{{ end }}
+{{ template "footer" . }}
+{{ end }}

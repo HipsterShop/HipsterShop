@@ -1,0 +1,103 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: {{ .Values.global.namespaces.backend }}
+  name: cartservice
+  labels:
+    app: cartservice
+spec:
+  replicas: {{ .Values.global.replicas.cartservice }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: {{ .Values.global.rollingUpdate.maxUnavailable }}
+      maxSurge: {{ .Values.global.rollingUpdate.maxSurge }}
+  selector:
+    matchLabels:
+      app: cartservice
+  template:
+    metadata:
+      labels:
+        app: cartservice
+        tier: backend
+    spec:
+      terminationGracePeriodSeconds: 5
+      initContainers:
+      - name: wait-for-cart-mongo-auth
+        image: {{ .Values.global.images.mongodb }}
+        envFrom:
+        - configMapRef:
+            name: hipster-config
+        env:
+        - name: MONGO_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-users
+              key: CART_MONGO_USERNAME
+        - name: MONGO_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-users
+              key: CART_MONGO_PASSWORD
+        command:
+        - bash
+        - -c
+        - |
+          set -e
+          echo "Waiting for cart Mongo auth to become ready..."
+          until mongosh "mongodb://$MONGO_USERNAME:$MONGO_PASSWORD@mongodb-0.mongo-headless.{{ .Values.global.namespaces.database }}.svc.cluster.local:27017,mongodb-1.mongo-headless.{{ .Values.global.namespaces.database }}.svc.cluster.local:27017,mongodb-2.mongo-headless.{{ .Values.global.namespaces.database }}.svc.cluster.local:27017/{{ .Values.global.mongodb.users.cart.database }}?replicaSet=rs0&authSource={{ .Values.global.mongodb.users.cart.database }}&authMechanism=SCRAM-SHA-256" --quiet --eval "db.adminCommand('ping').ok" | grep -q 1; do
+            echo "Cart Mongo auth not ready yet. Retrying in 3s..."
+            sleep 3
+          done
+          echo "Cart Mongo auth ready."
+      containers:
+      - name: server
+        image: {{ .Values.global.images.cartservice }}
+        ports:
+        - containerPort: {{ .Values.global.ports.cartservice }}
+        envFrom:
+        - configMapRef:
+            name: hipster-config
+        env:
+        - name: OTEL_SDK_DISABLED
+          value: "true"
+        - name: DISABLE_TRACING
+          value: "1"
+        - name: ASPNETCORE_HTTP_PORTS
+          value: "7070"
+        - name: MONGO_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-users
+              key: CART_MONGO_USERNAME
+        - name: MONGO_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-users
+              key: CART_MONGO_PASSWORD
+        - name: MONGO_DATABASE
+          valueFrom:
+            configMapKeyRef:
+              name: mongodb-config
+              key: CART_DB_NAME
+        - name: MONGO_URI
+          value: "mongodb://$(MONGO_USERNAME):$(MONGO_PASSWORD)@mongodb-0.mongo-headless.{{ .Values.global.namespaces.database }}.svc.cluster.local:27017,mongodb-1.mongo-headless.{{ .Values.global.namespaces.database }}.svc.cluster.local:27017,mongodb-2.mongo-headless.{{ .Values.global.namespaces.database }}.svc.cluster.local:27017/{{ .Values.global.mongodb.users.cart.database }}?replicaSet=rs0&authSource={{ .Values.global.mongodb.users.cart.database }}&authMechanism=SCRAM-SHA-256"
+        resources:
+          requests:
+            cpu: {{ .Values.global.resources.cartservice.requests.cpu }}
+            memory: {{ .Values.global.resources.cartservice.requests.memory }}
+          limits:
+            cpu: {{ .Values.global.resources.cartservice.limits.cpu }}
+            memory: {{ .Values.global.resources.cartservice.limits.memory }}
+        readinessProbe:
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          failureThreshold: 6
+          tcpSocket:
+            port: {{ .Values.global.ports.cartservice }}
+        livenessProbe:
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          failureThreshold: 6
+          tcpSocket:
+            port: {{ .Values.global.ports.cartservice }}

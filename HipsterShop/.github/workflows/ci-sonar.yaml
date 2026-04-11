@@ -1,0 +1,40 @@
+name: hipster
+on:
+  push:
+    branches: [ "ci-v1" ]
+  pull_request:
+
+jobs:
+  sonar-scan:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: scan
+        uses: sonarsource/sonarqube-scan-action@v2
+        with:
+          args: >
+            -Dsonar.projectKey=hipster-auth
+            -Dsonar.sources=src/authservice
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+    
+      - name: Install Dependencies
+        run: |
+          cd src/paymentservice
+          npm install
+    
+      - name: scan
+        uses: sonarsource/sonarqube-scan-action@v2
+        with:
+          args: >
+            -Dsonar.projectKey=hipster-payment
+            -Dsonar.sources=src/paymentservice
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+    

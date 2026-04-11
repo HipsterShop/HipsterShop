@@ -1,0 +1,23 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: {{ .Values.global.gateway.gatewayClassName }}
+spec:
+  controllerName: kgateway.dev/kgateway
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  namespace: {{ .Values.global.namespaces.backend }}
+  name: {{ .Values.global.gateway.name }}
+  labels:
+    app: hipstershop
+spec:
+  gatewayClassName: {{ .Values.global.gateway.gatewayClassName }}
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: {{ .Values.global.gateway.port }}
+      allowedRoutes:
+        namespaces:
+          from: Same

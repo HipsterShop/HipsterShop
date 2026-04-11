@@ -1,0 +1,71 @@
+plugins {
+    id 'com.github.sherter.google-java-format' version '0.9'
+    id 'idea'
+    id 'application'
+}
+
+repositories {
+    mavenCentral()
+    mavenLocal()
+}
+
+description = 'Ad Service'
+group = "adservice"
+version = "0.1.0-SNAPSHOT"
+
+def jacksonCoreVersion = "2.21.1"
+def jacksonDatabindVersion = "2.21.1"
+
+tasks.withType(JavaCompile) {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+ext {
+    speed = project.hasProperty('speed') ? project.getProperty('speed') : false
+    offlineCompile = new File("$buildDir/output/lib")
+}
+
+dependencies {
+    if (speed) {
+        implementation fileTree(dir: offlineCompile, include: '*.jar')
+    } else {
+        implementation "com.google.guava:guava:33.4.8-jre",
+                "org.apache.logging.log4j:log4j-core:2.25.3",
+                "com.fasterxml.jackson.core:jackson-core:${jacksonCoreVersion}",
+                "com.fasterxml.jackson.core:jackson-databind:${jacksonDatabindVersion}"
+    }
+}
+
+googleJavaFormat {
+    toolVersion '1.35.0'
+}
+
+sourceSets {
+    main {
+        java {
+            srcDirs 'src/main/java'
+        }
+    }
+}
+
+startScripts.enabled = false
+
+task downloadRepos(type: Copy) {
+    from configurations.compileClasspath
+    into offlineCompile
+    from configurations.compileClasspath
+    into offlineCompile
+}
+
+task adService(type: CreateStartScripts) {
+    mainClass.set('hipstershop.AdService')
+    applicationName = 'AdService'
+    outputDir = new File(project.buildDir, 'tmp')
+    classpath = startScripts.classpath
+}
+
+applicationDistribution.into('bin') {
+    from(adService)
+    fileMode = 0755
+}

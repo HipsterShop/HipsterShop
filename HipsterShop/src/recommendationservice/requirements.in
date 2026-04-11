@@ -1,0 +1,4 @@
+flask>=3.0
+requests>=2.31
+google-auth>=2.0
+python-json-logger>=2.0

@@ -1,0 +1,122 @@
+{{- $dbNs := .Values.global.namespaces.database -}}
+{{- $mongoHosts := printf "mongodb-0.mongo-headless.%s.svc.cluster.local:27017,mongodb-1.mongo-headless.%s.svc.cluster.local:27017,mongodb-2.mongo-headless.%s.svc.cluster.local:27017" $dbNs $dbNs $dbNs -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  namespace: {{ $dbNs }}
+  name: mongo-init-replicaset
+spec:
+  backoffLimit: 10
+  template:
+    metadata:
+      labels:
+        tier: job
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: mongo-init
+        image: {{ .Values.global.images.mongodb }}
+        env:
+        - name: MONGO_ROOT_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-root
+              key: MONGO_ROOT_USERNAME
+        - name: MONGO_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-root
+              key: MONGO_ROOT_PASSWORD
+        {{- range $key := list "AUTH" "CART" "CATALOG" "ORDER" "PAYMENT" "NOTIFICATION" "ANALYTICS" }}
+        - name: {{ $key }}_MONGO_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-users
+              key: {{ $key }}_MONGO_USERNAME
+        - name: {{ $key }}_MONGO_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-users
+              key: {{ $key }}_MONGO_PASSWORD
+        {{- end }}
+        command:
+        - bash
+        - -c
+        - |
+          set -e
+          MONGO_HOST_0="mongodb-0.mongo-headless.{{ $dbNs }}.svc.cluster.local:27017"
+          MONGO_HOST_1="mongodb-1.mongo-headless.{{ $dbNs }}.svc.cluster.local:27017"
+          MONGO_HOST_2="mongodb-2.mongo-headless.{{ $dbNs }}.svc.cluster.local:27017"
+
+          echo "Waiting for mongodb-0..."
+          until mongosh --host $MONGO_HOST_0 --eval "db.adminCommand('ping')" > /dev/null 2>&1; do sleep 3; done
+          echo "mongodb-0 ready."
+          echo "Waiting for mongodb-1..."
+          until mongosh --host $MONGO_HOST_1 --eval "db.adminCommand('ping')" > /dev/null 2>&1; do sleep 3; done
+          echo "mongodb-1 ready."
+          echo "Waiting for mongodb-2..."
+          until mongosh --host $MONGO_HOST_2 --eval "db.adminCommand('ping')" > /dev/null 2>&1; do sleep 3; done
+          echo "mongodb-2 ready."
+
+          echo "All MongoDB pods ready. Initiating replica set..."
+          mongosh --host $MONGO_HOST_0 --eval "
+            try {
+              var status = rs.status();
+              if (status.ok === 1) { print('Replica set already initialized.'); }
+            } catch (e) {
+              print('Proceeding with rs.initiate().');
+              try {
+                rs.initiate({
+                  _id: '{{ .Values.global.mongodb.replicaSetName }}',
+                  members: [
+                    { _id: 0, host: '$MONGO_HOST_0', priority: 2 },
+                    { _id: 1, host: '$MONGO_HOST_1', priority: 1 },
+                    { _id: 2, host: '$MONGO_HOST_2', priority: 1 }
+                  ]
+                });
+                print('Replica set initiated successfully.');
+              } catch (initErr) {
+                var msg = (initErr && initErr.message) ? initErr.message : '';
+                if (msg.indexOf('already initialized') >= 0) { print('Already initialized.'); }
+                else { throw initErr; }
+              }
+            }
+          "
+
+          echo "Waiting for primary election..."
+          until mongosh --host $MONGO_HOST_0 --eval "
+            var status = rs.status();
+            var hasPrimary = status.members && status.members.some(function(m) { return m.stateStr === 'PRIMARY'; });
+            if (!hasPrimary) { quit(1); }
+            print('Primary elected.');
+          " > /dev/null 2>&1; do echo "  waiting..."; sleep 3; done
+
+          echo "Creating admin user..."
+          mongosh --host $MONGO_HOST_0 --eval "
+            var adminDb = db.getSiblingDB('admin');
+            var existingUser = adminDb.getUser('$MONGO_ROOT_USERNAME');
+            if (existingUser) { print('Admin user exists.'); }
+            else {
+              adminDb.createUser({ user: '$MONGO_ROOT_USERNAME', pwd: '$MONGO_ROOT_PASSWORD', roles: [{ role: 'root', db: 'admin' }] });
+              print('Admin user created.');
+            }
+          "
+
+          echo "Creating application database users..."
+          mongosh --host $MONGO_HOST_0 --authenticationDatabase admin -u "$MONGO_ROOT_USERNAME" -p "$MONGO_ROOT_PASSWORD" --eval "
+            function ensureDbUser(dbName, userName, password) {
+              var targetDb = db.getSiblingDB(dbName);
+              var existingUser = targetDb.getUser(userName);
+              if (existingUser) { print('User exists for ' + dbName); return; }
+              targetDb.createUser({ user: userName, pwd: password, roles: [{ role: 'readWrite', db: dbName }] });
+              print('Created user for ' + dbName);
+            }
+            ensureDbUser('{{ .Values.global.mongodb.users.auth.database }}', '$AUTH_MONGO_USERNAME', '$AUTH_MONGO_PASSWORD');
+            ensureDbUser('{{ .Values.global.mongodb.users.cart.database }}', '$CART_MONGO_USERNAME', '$CART_MONGO_PASSWORD');
+            ensureDbUser('{{ .Values.global.mongodb.users.catalog.database }}', '$CATALOG_MONGO_USERNAME', '$CATALOG_MONGO_PASSWORD');
+            ensureDbUser('{{ .Values.global.mongodb.users.order.database }}', '$ORDER_MONGO_USERNAME', '$ORDER_MONGO_PASSWORD');
+            ensureDbUser('{{ .Values.global.mongodb.users.payment.database }}', '$PAYMENT_MONGO_USERNAME', '$PAYMENT_MONGO_PASSWORD');
+            ensureDbUser('{{ .Values.global.mongodb.users.notification.database }}', '$NOTIFICATION_MONGO_USERNAME', '$NOTIFICATION_MONGO_PASSWORD');
+            ensureDbUser('{{ .Values.global.mongodb.users.analytics.database }}', '$ANALYTICS_MONGO_USERNAME', '$ANALYTICS_MONGO_PASSWORD');
+          "
+          echo "MongoDB setup complete!"

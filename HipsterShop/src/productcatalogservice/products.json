@@ -1,0 +1,190 @@
+{
+    "products": [
+        {
+            "id": "OLJCESPC7Z",
+            "name": "Sunglasses",
+            "description": "Add a modern touch to your outfits with these sleek aviator sunglasses.",
+            "picture": "/static/img/products/sunglasses.jpg",
+            "priceUsd": {
+                "currencyCode": "USD",
+                "units": 19,
+                "nanos": 990000000
+            },
+            "categories": ["accessories"],
+            "details": {
+                "material": "Metal frame with polycarbonate UV400 lenses",
+                "colors": ["Gold/Brown", "Silver/Grey", "Black/Smoke"],
+                "care": "Wipe lenses with a microfiber cloth. Store in a case when not in use.",
+                "fit": "Unisex. Aviator style fits most face shapes including oval, square, and heart.",
+                "uv_protection": "UV400 — blocks 100% of UVA and UVB rays",
+                "notes": "Lightweight at 28g. Includes a soft pouch."
+            }
+        },
+        {
+            "id": "66VCHSJNUP",
+            "name": "Tank Top",
+            "description": "Perfectly cropped cotton tank, with a scooped neckline.",
+            "picture": "/static/img/products/tank-top.jpg",
+            "priceUsd": {
+                "currencyCode": "USD",
+                "units": 18,
+                "nanos": 990000000
+            },
+            "categories": ["clothing", "tops"],
+            "details": {
+                "material": "100% combed cotton, 180gsm",
+                "colors": ["White", "Black", "Navy", "Sage Green", "Dusty Rose"],
+                "sizing": "Available XS–XL. Runs true to size. Cropped length hits above the waist.",
+                "care": "Machine wash cold, tumble dry low. Do not bleach.",
+                "fit": "Relaxed crop fit. Scooped neckline. Sleeveless.",
+                "notes": "Pairs well with high-waist jeans, skirts, or shorts."
+            }
+        },
+        {
+            "id": "1YMWWN1N4O",
+            "name": "Watch",
+            "description": "This gold-tone stainless steel watch will work with most of your outfits.",
+            "picture": "/static/img/products/watch.jpg",
+            "priceUsd": {
+                "currencyCode": "USD",
+                "units": 109,
+                "nanos": 990000000
+            },
+            "categories": ["accessories"],
+            "details": {
+                "material": "Gold-tone stainless steel case and bracelet. Mineral crystal glass.",
+                "colors": ["Gold with white dial", "Gold with black dial"],
+                "movement": "Japanese quartz movement",
+                "water_resistance": "3 ATM (splash resistant, not for swimming)",
+                "case_diameter": "38mm",
+                "care": "Wipe with a soft dry cloth. Keep away from strong magnets and chemicals.",
+                "fit": "Unisex. Adjustable bracelet fits wrists 15–20cm.",
+                "notes": "Dress watch suitable for office, events, and casual wear."
+            }
+        },
+        {
+            "id": "L9ECAV7KIM",
+            "name": "Loafers",
+            "description": "A neat addition to your summer wardrobe.",
+            "picture": "/static/img/products/loafers.jpg",
+            "priceUsd": {
+                "currencyCode": "USD",
+                "units": 89,
+                "nanos": 990000000
+            },
+            "categories": ["footwear"],
+            "details": {
+                "material": "Vegan leather upper, rubber sole",
+                "colors": ["Tan", "Black", "White"],
+                "sizing": "Available US 5–13. Runs half a size small — size up if between sizes.",
+                "care": "Wipe clean with a damp cloth. Use a leather conditioner on the upper.",
+                "fit": "Slip-on. Pointed toe. Low stacked heel (1.5cm).",
+                "notes": "Lightweight and breathable. Great for warm weather and smart-casual outfits."
+            }
+        },
+        {
+            "id": "2ZYFJ3GM2N",
+            "name": "Hairdryer",
+            "description": "This lightweight hairdryer has 3 heat and speed settings. It's perfect for travel.",
+            "picture": "/static/img/products/hairdryer.jpg",
+            "priceUsd": {
+                "currencyCode": "USD",
+                "units": 24,
+                "nanos": 990000000
+            },
+            "categories": ["hair", "beauty"],
+            "details": {
+                "material": "ABS plastic body",
+                "colors": ["White/Rose Gold", "Black/Chrome"],
+                "wattage": "1200W",
+                "settings": "3 heat settings (Cool, Warm, Hot) + 2 speed settings",
+                "voltage": "100–240V (universal, travel-compatible)",
+                "weight": "350g",
+                "includes": "Concentrator nozzle, travel pouch",
+                "care": "Clean the air intake filter monthly. Do not use near water.",
+                "notes": "Dual voltage — works worldwide. Foldable handle for easy packing."
+            }
+        },
+        {
+            "id": "0PUK6V6EV0",
+            "name": "Candle Holder",
+            "description": "This small but intricate candle holder is an excellent gift.",
+            "picture": "/static/img/products/candle-holder.jpg",
+            "priceUsd": {
+                "currencyCode": "USD",
+                "units": 18,
+                "nanos": 990000000
+            },
+            "categories": ["decor", "home"],
+            "details": {
+                "material": "Hand-blown borosilicate glass",
+                "colors": ["Clear/Amber", "Smoky Grey"],
+                "dimensions": "8cm wide x 10cm tall",
+                "candle_type": "Fits standard taper candles (2.2cm diameter) or tea lights",
+                "care": "Hand wash only. Do not place in dishwasher.",
+                "notes": "Heat-resistant glass. Arrives in gift-ready box. Great as a housewarming or birthday gift."
+            }
+        },
+        {
+            "id": "LS4PSXUNUM",
+            "name": "Salt & Pepper Shakers",
+            "description": "Add some flavor to your kitchen.",
+            "picture": "/static/img/products/salt-and-pepper-shakers.jpg",
+            "priceUsd": {
+                "currencyCode": "USD",
+                "units": 18,
+                "nanos": 490000000
+            },
+            "categories": ["kitchen"],
+            "details": {
+                "material": "Ceramic with cork stopper",
+                "colors": ["Matte White", "Terracotta", "Sage Green"],
+                "capacity": "120ml per shaker",
+                "dimensions": "6cm wide x 9cm tall",
+                "care": "Hand wash recommended. Dishwasher safe on top rack.",
+                "includes": "Set of 2 (one salt, one pepper). Includes 'S' and 'P' engraving.",
+                "notes": "Wide-mouth opening for easy refilling."
+            }
+        },
+        {
+            "id": "9SIQT8TOJO",
+            "name": "Bamboo Glass Jar",
+            "description": "This bamboo glass jar can hold 57 oz (1.7 l) and is perfect for any kitchen.",
+            "picture": "/static/img/products/bamboo-glass-jar.jpg",
+            "priceUsd": {
+                "currencyCode": "USD",
+                "units": 5,
+                "nanos": 490000000
+            },
+            "categories": ["kitchen"],
+            "details": {
+                "material": "Borosilicate glass body, natural bamboo lid",
+                "colors": ["Clear glass with natural bamboo"],
+                "capacity": "57 oz / 1.7 liters",
+                "dimensions": "10cm wide x 18cm tall",
+                "care": "Glass is dishwasher safe. Hand wash bamboo lid only.",
+                "notes": "Airtight bamboo lid keeps contents fresh. BPA-free. Good for pasta, grains, snacks, or coffee."
+            }
+        },
+        {
+            "id": "6E92ZMYYFZ",
+            "name": "Mug",
+            "description": "A simple mug with a mustard interior.",
+            "picture": "/static/img/products/mug.jpg",
+            "priceUsd": {
+                "currencyCode": "USD",
+                "units": 8,
+                "nanos": 990000000
+            },
+            "categories": ["kitchen"],
+            "details": {
+                "material": "Ceramic, stoneware glaze",
+                "colors": ["White exterior with mustard yellow interior"],
+                "capacity": "12 oz / 355ml",
+                "dimensions": "9cm wide x 10cm tall",
+                "care": "Dishwasher safe. Microwave safe.",
+                "notes": "Thick walls keep drinks warm longer. Lead-free glaze. Great for coffee, tea, or hot chocolate."
+            }
+        }
+    ]
+}

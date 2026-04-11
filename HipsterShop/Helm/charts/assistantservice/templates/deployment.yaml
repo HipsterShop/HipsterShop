@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: assistantservice
+  namespace: {{ .Values.global.namespaces.backend }}
+spec:
+  replicas: {{ .Values.global.replicas.assistantservice }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: {{ .Values.global.rollingUpdate.maxUnavailable }}
+      maxSurge: {{ .Values.global.rollingUpdate.maxSurge }}
+  selector:
+    matchLabels:
+      app: assistantservice
+  template:
+    metadata:
+      labels:
+        app: assistantservice
+        tier: backend
+    spec:
+      containers:
+      - name: server
+        image: {{ .Values.global.images.assistantservice }}
+        ports:
+        - containerPort: {{ .Values.global.ports.assistantservice }}
+        envFrom:
+        - configMapRef:
+            name: hipster-config
+        env:
+        - name: GATEWAY_ADDR
+          valueFrom:
+            configMapKeyRef:
+              name: service-addresses
+              key: GATEWAY_ADDR
+        - name: GEMINI_MODEL
+          valueFrom:
+            configMapKeyRef:
+              name: app-features
+              key: GEMINI_MODEL
+        - name: GEMINI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: GEMINI_API_KEY
+        resources:
+          requests:
+            cpu: {{ .Values.global.resources.standard.requests.cpu }}
+            memory: {{ .Values.global.resources.standard.requests.memory }}
+          limits:
+            cpu: {{ .Values.global.resources.standard.limits.cpu }}
+            memory: {{ .Values.global.resources.standard.limits.memory }}
+        readinessProbe:
+          httpGet:
+            path: /_healthz
+            port: {{ .Values.global.ports.assistantservice }}
+        livenessProbe:
+          httpGet:
+            path: /_healthz
+            port: {{ .Values.global.ports.assistantservice }}
