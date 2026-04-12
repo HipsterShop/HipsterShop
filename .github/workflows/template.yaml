@@ -415,7 +415,7 @@ jobs:
           api-key: ${{ secrets.SENDGRID_API_KEY }}
           subject: "CI FAILED — ${{ inputs.service_name }} (${{ github.sha }})"
           from-email: chrissattasseril16@gmail.com
-          to-email: kondojuvinaykumar2004@gmail.com
+          to-email: chrissattasseril16@gmail.com
           markdown-body: |
             ## CI Pipeline Failed
 
