@@ -413,11 +413,11 @@ jobs:
         uses: licenseware/send-email-notification@v1
         with:
           api-key: ${{ secrets.SENDGRID_API_KEY }}
-          subject: "❌ CI FAILED — ${{ inputs.service_name }} (${{ github.sha }})"
+          subject: "CI FAILED — ${{ inputs.service_name }} (${{ github.sha }})"
           from-email: chrissattasseril16@gmail.com
-          to-email: [chrissattasseril16@gmail.com, kondojuvinaykumar2004@gmail.com]
+          to-email: kondojuvinaykumar2004@gmail.com
           markdown-body: |
-            ## ❌ CI Pipeline Failed
+            ## CI Pipeline Failed
 
             **Service:** `${{ inputs.service_name }}`  
             **Commit:** ${{ github.event.head_commit.message }}  
@@ -429,9 +429,9 @@ jobs:
 
             | Job | Result |
             |-----|--------|
-            | 🔍 Security Scan (Snyk + SonarQube) | **${{ needs.scan.result }}** |
-            | 🐳 Docker Build & Push (+ Trivy) | **${{ needs.build-and-push.result }}** |
+            | Security Scan (Snyk + SonarQube) | **${{ needs.scan.result }}** |
+            | Docker Build & Push (+ Trivy) | **${{ needs.build-and-push.result }}** |
 
             > If the Docker job failed due to Trivy, CRITICAL vulnerabilities were detected in the image and the push was blocked.
 
-            [🔗 View Full Logs](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            [View Full Logs](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
