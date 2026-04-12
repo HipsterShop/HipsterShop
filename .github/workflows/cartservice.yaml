@@ -3,14 +3,14 @@ name: cartservice CI
 on:
   push:
     branches:
-      - chore/ci-setup
+      - chore/ci-setup-v1
     paths:
       - 'src/cartservice/**'
       - '.github/workflows/cartservice.yaml'
       - '.github/workflows/template.yaml'
   pull_request:
     branches:
-      - chore/ci-setup
+      - chore/ci-setup-v1
     paths:
       - 'src/cartservice/**'
       - '.github/workflows/cartservice.yaml'

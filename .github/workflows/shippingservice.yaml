@@ -3,14 +3,14 @@ name: shippingservice CI
 on:
   push:
     branches:
-      - chore/ci-setup
+      - chore/ci-setup-v1
     paths:
       - 'src/shippingservice/**'
       - '.github/workflows/shippingservice.yaml'
       - '.github/workflows/template.yaml'
   pull_request:
     branches:
-      - chore/ci-setup
+      - chore/ci-setup-v1
     paths:
       - 'src/shippingservice/**'
       - '.github/workflows/shippingservice.yaml'

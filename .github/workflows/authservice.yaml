@@ -3,14 +3,14 @@ name: authservice CI
 on:
   push:
     branches:
-      - chore/ci-setup
+      - chore/ci-setup-v1
     paths:
       - 'src/authservice/**'
       - '.github/workflows/authservice.yaml'
       - '.github/workflows/template.yaml'
   pull_request:
     branches:
-      - chore/ci-setup
+      - chore/ci-setup-v1
     paths:
       - 'src/authservice/**'
       - '.github/workflows/authservice.yaml'

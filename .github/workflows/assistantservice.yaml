@@ -3,14 +3,14 @@ name: assistantservice CI
 on:
   push:
     branches:
-      - chore/ci-setup
+      - chore/ci-setup-v1
     paths:
       - 'src/assistantservice/**'
       - '.github/workflows/assistantservice.yaml'
       - '.github/workflows/template.yaml'
   pull_request:
     branches:
-      - chore/ci-setup
+      - chore/ci-setup-v1
     paths:
       - 'src/assistantservice/**'
       - '.github/workflows/assistantservice.yaml'

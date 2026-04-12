@@ -3,14 +3,14 @@ name: emailservice CI
 on:
   push:
     branches:
-      - chore/ci-setup
+      - chore/ci-setup-v1
     paths:
       - 'src/emailservice/**'
       - '.github/workflows/emailservice.yaml'
       - '.github/workflows/template.yaml'
   pull_request:
     branches:
-      - chore/ci-setup
+      - chore/ci-setup-v1
     paths:
       - 'src/emailservice/**'
       - '.github/workflows/emailservice.yaml'

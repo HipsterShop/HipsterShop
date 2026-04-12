@@ -3,14 +3,14 @@ name: frontend CI
 on:
   push:
     branches:
-      - chore/ci-setup
+      - chore/ci-setup-v1
     paths:
       - 'src/frontend/**'
       - '.github/workflows/frontend.yaml'
       - '.github/workflows/template.yaml'
   pull_request:
     branches:
-      - chore/ci-setup
+      - chore/ci-setup-v1
     paths:
       - 'src/frontend/**'
       - '.github/workflows/frontend.yaml'
