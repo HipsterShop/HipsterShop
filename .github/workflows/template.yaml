@@ -237,6 +237,9 @@ jobs:
         uses: SonarSource/sonarqube-scan-action@v6
         with:
           projectBaseDir: ${{ inputs.service_path }}
+          args: >
+            -Dsonar.projectKey=${{ inputs.service_name }}
+            -Dsonar.projectName=${{ inputs.service_name }}
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: "http://34.201.100.11:9000/"  
