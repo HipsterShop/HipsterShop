@@ -1,6 +1,6 @@
 name: template
 
-run-name: "${{ inputs.service_name }} triggered by commit - ${{ github.event.head_commit.message }} (${{ github.sha }}) "
+run-name: "${{ inputs.service_name }} triggered by commit — ${{ github.event.head_commit.message }} (${{ github.sha }})"
 
 on:
   workflow_call:
@@ -38,8 +38,7 @@ on:
         required: false
         type: string
         default: "maven"
-    
-    
+
     secrets:
       SNYK_TOKEN:
         required: true
@@ -56,126 +55,197 @@ on:
 
 
 jobs:
-  pipeline:
-    name: "ci of ${{ inputs.service_name }}"
+  # ── Job 1: Build & Test ───────────────────────────────────────────────────
+  build:
+    name: "build & test — ${{ inputs.service_name }}"
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: ${{ inputs.service_path }}
     steps:
-      - uses: actions/checkout@v6
-      
+      - uses: actions/checkout@v4
+
       - name: Fix file permissions (Gradle)
         if: inputs.runtime == 'java' && inputs.java-build-tool == 'gradle'
         run: chmod +x gradle/wrapper/gradle-wrapper.jar gradlew
-      
-      - name: nodejs setup
+
+      - name: Setup Node.js
         if: inputs.runtime == 'node'
         uses: actions/setup-node@v4
-        with: 
+        with:
           node-version: ${{ inputs.node-version }}
           cache: npm
           cache-dependency-path: "${{ inputs.service_path }}/package.json"
-      - name: python setup 
+
+      - name: Setup Python
         if: inputs.runtime == 'python'
         uses: actions/setup-python@v5
         with:
           python-version: ${{ inputs.python-version }}
           cache: "pip"
 
-      - name: java
+      - name: Setup Go
+        if: inputs.runtime == 'go'
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ inputs.go-version }}
+
+      - name: Setup Java
         if: inputs.runtime == 'java'
         uses: actions/setup-java@v4
         with:
           distribution: "temurin"
           java-version: ${{ inputs.java-version }}
           cache: ${{ inputs.java-build-tool }}
+
       - name: Setup .NET
         if: inputs.runtime == 'dotnet'
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ inputs.dotnet-version }}
-          
 
-      - name: node dependencies
+      - name: Install Node dependencies
         if: inputs.runtime == 'node'
         run: npm install
 
-      - name: python dependencies
+      - name: Install Python dependencies
         if: inputs.runtime == 'python'
         run: pip install -r requirements.txt
 
-      - name: go modules
+      - name: Download Go modules
         if: inputs.runtime == 'go'
         run: go mod download
 
-      - name: build go
+      - name: Build (Go)
         if: inputs.runtime == 'go'
         run: go build ./...
 
-      - name: build java (Maven)
+      - name: Build (Java — Maven)
         if: inputs.runtime == 'java' && inputs.java-build-tool == 'maven'
         run: mvn -B package --no-transfer-progress
 
-      - name: build java (Gradle)
+      - name: Build (Java — Gradle)
         if: inputs.runtime == 'java' && inputs.java-build-tool == 'gradle'
         run: ./gradlew build -x test
-        
 
-      - name: Restore .NET dependencies
+      - name: Restore .NET packages
         if: inputs.runtime == 'dotnet'
         run: dotnet restore
 
-      - name: Build .NET
+      - name: Build (.NET)
         if: inputs.runtime == 'dotnet'
         run: dotnet build --configuration Release --no-restore
 
-      # node and python don't have a separate compile step they go straight to tests below.
-
-      - name: Test node
+      - name: Test (Node)
         if: inputs.runtime == 'node'
         run: npm test -- --passWithNoTests
 
-      - name: Test python
+      - name: Test (Python)
         if: inputs.runtime == 'python'
         run: |
           pip install pytest
           pytest --tb=short || true
 
-      - name: Test go
+      - name: Test (Go)
         if: inputs.runtime == 'go'
         run: go test ./... -v
 
-      - name: Test Java (Maven)
+      - name: Test (Java — Maven)
         if: inputs.runtime == 'java' && inputs.java-build-tool == 'maven'
         run: mvn -B test --no-transfer-progress
 
-      - name: Test Java (Gradle)
+      - name: Test (Java — Gradle)
         if: inputs.runtime == 'java' && inputs.java-build-tool == 'gradle'
         run: ./gradlew test
 
-      - name: Test .NET
+      - name: Test (.NET)
         if: inputs.runtime == 'dotnet'
         run: dotnet test --no-build --configuration Release --verbosity normal
 
-
-      - name: Check unused dependencies (Node)
+      - name: Lint — check unused dependencies (Node)
         if: inputs.runtime == 'node'
         run: npx depcheck || true
 
-      - name: Lint (Go — go vet)
+      - name: Lint — go vet (Go)
         if: inputs.runtime == 'go'
         run: go vet ./...
 
-      - name: Lint (.NET — format check)
+      - name: Lint — format check (.NET)
         if: inputs.runtime == 'dotnet'
         run: dotnet format --verify-no-changes || true
+
+
+  # ── Job 2: Security Scan (Snyk + SonarQube) ──────────────────────────────
+  scan:
+    name: "scan — ${{ inputs.service_name }}"
+    runs-on: ubuntu-latest
+    needs: build
+    defaults:
+      run:
+        working-directory: ${{ inputs.service_path }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fix file permissions (Gradle)
+        if: inputs.runtime == 'java' && inputs.java-build-tool == 'gradle'
+        run: chmod +x gradle/wrapper/gradle-wrapper.jar gradlew
+
+      - name: Setup Node.js
+        if: inputs.runtime == 'node'
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: npm
+          cache-dependency-path: "${{ inputs.service_path }}/package.json"
+
+      - name: Setup Python
+        if: inputs.runtime == 'python'
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+          cache: "pip"
+
+      - name: Setup Go
+        if: inputs.runtime == 'go'
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ inputs.go-version }}
+
+      - name: Setup Java
+        if: inputs.runtime == 'java'
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: ${{ inputs.java-version }}
+          cache: ${{ inputs.java-build-tool }}
+
+      - name: Setup .NET
+        if: inputs.runtime == 'dotnet'
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ inputs.dotnet-version }}
+
+      - name: Install Node dependencies
+        if: inputs.runtime == 'node'
+        run: npm install
+
+      - name: Install Python dependencies
+        if: inputs.runtime == 'python'
+        run: pip install -r requirements.txt
+
+      - name: Download Go modules
+        if: inputs.runtime == 'go'
+        run: go mod download
+
+      - name: Restore .NET packages
+        if: inputs.runtime == 'dotnet'
+        run: dotnet restore
 
       - name: Setup Snyk CLI
         uses: snyk/actions/setup@master
 
       - name: Install snyk-to-html
-        run: npm install -g snyk-to-html   
+        run: npm install -g snyk-to-html
 
       - name: Snyk scan (Node)
         if: inputs.runtime == 'node'
@@ -187,7 +257,6 @@ jobs:
         if: inputs.runtime == 'node'
         run: snyk-to-html -i snyk-report.json -o snyk-report.html
 
-  
       - name: Snyk scan (Python)
         if: inputs.runtime == 'python'
         run: snyk test --file=requirements.txt --package-manager=pip --severity-threshold=high --json-file-output=snyk-report.json || true
@@ -208,13 +277,13 @@ jobs:
         if: inputs.runtime == 'go'
         run: snyk-to-html -i snyk-report.json -o snyk-report.html
 
-      - name: Snyk scan (Java - Maven)
+      - name: Snyk scan (Java — Maven)
         if: inputs.runtime == 'java' && inputs.java-build-tool == 'maven'
         run: snyk test --file=pom.xml --severity-threshold=high --json-file-output=snyk-report.json || true
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 
-      - name: Snyk scan (Java - Gradle)
+      - name: Snyk scan (Java — Gradle)
         if: inputs.runtime == 'java' && inputs.java-build-tool == 'gradle'
         run: snyk test --file=build.gradle --severity-threshold=high --json-file-output=snyk-report.json || true
         env:
@@ -253,6 +322,15 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
 
+
+  # ── Job 3: Build & Push Docker Image (with Trivy CRITICAL gate) ──────────
+  build-and-push:
+    name: "build & push — ${{ inputs.service_name }}"
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+
       - name: Check Docker Hub credentials
         id: docker_check
         run: |
@@ -262,6 +340,65 @@ jobs:
             echo "has_credentials=false" >> $GITHUB_OUTPUT
           fi
 
+      - name: Set up Docker Buildx
+        if: steps.docker_check.outputs.has_credentials == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        if: steps.docker_check.outputs.has_credentials == 'true'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract image tags
+        if: steps.docker_check.outputs.has_credentials == 'true'
+        id: meta
+        run: |
+          echo "image_tag=${{ secrets.DOCKERHUB_USERNAME }}/hipstershop-${{ inputs.service_name }}:${{ github.sha }}" >> $GITHUB_OUTPUT
+          echo "image_latest=${{ secrets.DOCKERHUB_USERNAME }}/hipstershop-${{ inputs.service_name }}:latest" >> $GITHUB_OUTPUT
+
+      # Build locally (no push) so Trivy can scan the image before it ships
+      - name: Build Docker image (local, pre-scan)
+        if: steps.docker_check.outputs.has_credentials == 'true'
+        run: |
+          docker build \
+            -t ${{ steps.meta.outputs.image_tag }} \
+            ${{ inputs.service_path }}
+
+      # Fail the job immediately if CRITICAL CVEs are found
+      - name: Trivy — scan for CRITICAL vulnerabilities
+        if: steps.docker_check.outputs.has_credentials == 'true'
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ steps.meta.outputs.image_tag }}
+          format: table
+          exit-code: "1"
+          severity: CRITICAL
+          ignore-unfixed: true
+
+      # Only reached if Trivy found no CRITICAL CVEs
+      - name: Push Docker image to Docker Hub
+        if: steps.docker_check.outputs.has_credentials == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ inputs.service_path }}
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.image_tag }}
+            ${{ steps.meta.outputs.image_latest }}
+          cache-from: type=registry,ref=${{ steps.meta.outputs.image_latest }}
+          cache-to: type=inline
+
+
+  # ── Job 4: Email Notification (fires only when scan or push fails) ────────
+  notify:
+    name: "notify — ${{ inputs.service_name }}"
+    runs-on: ubuntu-latest
+    needs: [scan, build-and-push]
+    # Run even if upstream jobs fail, but only when at least one actually failed
+    if: always() && (needs.scan.result == 'failure' || needs.build-and-push.result == 'failure')
+    steps:
       - name: Check SendGrid credentials
         id: email_check
         run: |
@@ -271,55 +408,30 @@ jobs:
             echo "has_credentials=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Set up Docker Buildx
-        if: success() && steps.docker_check.outputs.has_credentials == 'true'
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to Docker Hub
-        if: success() && steps.docker_check.outputs.has_credentials == 'true'
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Extract metadata
-        if: success() && steps.docker_check.outputs.has_credentials == 'true'
-        id: meta
-        run: |
-          SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
-          echo "short_sha=${SHORT_SHA}" >> $GITHUB_OUTPUT
-          echo "image_tag=${{ secrets.DOCKERHUB_USERNAME }}/hipstershop-${{ inputs.service_name }}:${SHORT_SHA}" >> $GITHUB_OUTPUT
-          echo "image_latest=${{ secrets.DOCKERHUB_USERNAME }}/hipstershop-${{ inputs.service_name }}:latest" >> $GITHUB_OUTPUT
-
-      - name: Build and push Docker image
-        if: success() && steps.docker_check.outputs.has_credentials == 'true'
-        uses: docker/build-push-action@v6
-        with:
-          context: ${{ inputs.service_path }}
-          push: true
-          tags: |
-            ${{ steps.meta.outputs.image_tag }}
-            ${{ steps.meta.outputs.image_latest }}
-          cache-from: type=registry,ref=${{ steps.meta.outputs.image_latest }}
-          cache-to: type=inline  
-
-      - name: Send Email Notification
-        if: always() && steps.email_check.outputs.has_credentials == 'true'
+      - name: Send failure notification
+        if: steps.email_check.outputs.has_credentials == 'true'
         uses: licenseware/send-email-notification@v1
         with:
           api-key: ${{ secrets.SENDGRID_API_KEY }}
-          subject: "CI ${{ job.status }} - ${{ inputs.service_name }} (${{ github.sha }})"
+          subject: "❌ CI FAILED — ${{ inputs.service_name }} (${{ github.sha }})"
           from-email: chrissattasseril16@gmail.com
-          to-email: 307401@ust.com
+          to-email: [chrissattasseril16@gmail.com, kondojuvinaykumar2004@gmail.com]
           markdown-body: |
-            ## CI Pipeline ${{ job.status }}
+            ## ❌ CI Pipeline Failed
 
-            **Service:** ${{ inputs.service_name }}  
+            **Service:** `${{ inputs.service_name }}`  
             **Commit:** ${{ github.event.head_commit.message }}  
-            **SHA:** ${{ github.sha }}  
+            **SHA:** `${{ github.sha }}`  
             **Actor:** ${{ github.actor }}  
-            **Status:** ${{ job.status }}
-            ${{ steps.docker_check.outputs.has_credentials == 'true' && format('**Docker Image:** {0}/hipstershop-{1}:{2}', secrets.DOCKERHUB_USERNAME, inputs.service_name, github.sha) || '' }}
+            **Branch:** `${{ github.ref_name }}`
 
-            [View Logs](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            ## Job Status
 
+            | Job | Result |
+            |-----|--------|
+            | 🔍 Security Scan (Snyk + SonarQube) | **${{ needs.scan.result }}** |
+            | 🐳 Docker Build & Push (+ Trivy) | **${{ needs.build-and-push.result }}** |
+
+            > If the Docker job failed due to Trivy, CRITICAL vulnerabilities were detected in the image and the push was blocked.
+
+            [🔗 View Full Logs](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
