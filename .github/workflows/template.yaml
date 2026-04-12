@@ -251,10 +251,10 @@ jobs:
         uses: hilarion5/send-mail@v1
         with:
           smtp-server: smtp.gmail.com
-          smtp-port: 465
-          smtp-secure: true
+          smtp-port: 587
+          smtp-secure: false
           from-email: ${{ secrets.EMAIL_USERNAME }}
-          to-email: yourmail@gmail.com
+          to-email: 307401@ust.com
           username: ${{ secrets.EMAIL_USERNAME }}
           password: ${{ secrets.EMAIL_PASSWORD }}
           subject: "CI Failed - ${{ inputs.service_name }}"
