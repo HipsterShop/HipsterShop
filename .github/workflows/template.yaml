@@ -1,5 +1,7 @@
 name: template
 
+run-name: "${{ inputs.service_name }} triggered by commit - ${{ github.event.head_commit.message }} (${{ github.sha }}) "
+
 on:
   workflow_call:
     inputs:
@@ -243,4 +245,23 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: "http://34.201.100.11:9000/"  
+    
+      - name: Send Email on Failure
+        if: failure()
+        uses: hilarion5/send-mail@v1
+        with:
+          smtp-server: smtp.gmail.com
+          smtp-port: 465
+          smtp-secure: true
+          from-email: ${{ secrets.EMAIL_USERNAME }}
+          to-email: yourmail@gmail.com
+          username: ${{ secrets.EMAIL_USERNAME }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+          subject: "CI Failed - ${{ inputs.service_name }}"
+          body: |
+            CI failed for service: ${{ inputs.service_name }}
+            Commit: ${{ github.event.head_commit.message }}
+            SHA: ${{ github.sha }}
+            Actor: ${{ github.actor }}
 
+            Logs: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
