@@ -310,8 +310,8 @@ jobs:
         with:
           api-key: ${{ secrets.SENDGRID_API_KEY }}
           subject: "CI ${{ job.status }} - ${{ inputs.service_name }} (${{ github.sha }})"
-          from-email: kondojuvinaykumar2004@gmail.com
-          to-email: 307372@ust.com
+          from-email: chrissattasseril16@gmail.com
+          to-email: 307401@ust.com
           markdown-body: |
             ## CI Pipeline ${{ job.status }}
 
