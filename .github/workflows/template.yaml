@@ -349,45 +349,44 @@ jobs:
     outputs:
       image_tag: ${{ steps.meta.outputs.image_tag }}
       image_latest: ${{ steps.meta.outputs.image_latest }}
-      has_credentials: ${{ steps.docker_check.outputs.has_credentials }}
+      has_credentials: ${{ steps.meta.outputs.has_credentials }}
       result: ${{ job.status }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Check Docker Hub credentials
-        id: docker_check
+      # Single always-running step that sets ALL outputs so downstream jobs
+      # always receive non-null values (prevents Trivy getting empty image-ref)
+      - name: Resolve credentials and image tags
+        id: meta
         run: |
           if [ -n "${{ secrets.DOCKERHUB_USERNAME }}" ] && [ -n "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
             echo "has_credentials=true" >> $GITHUB_OUTPUT
+            echo "image_tag=${{ secrets.DOCKERHUB_USERNAME }}/hipstershop-${{ inputs.service_name }}:${{ github.sha }}" >> $GITHUB_OUTPUT
+            echo "image_latest=${{ secrets.DOCKERHUB_USERNAME }}/hipstershop-${{ inputs.service_name }}:latest" >> $GITHUB_OUTPUT
           else
             echo "has_credentials=false" >> $GITHUB_OUTPUT
+            echo "image_tag=" >> $GITHUB_OUTPUT
+            echo "image_latest=" >> $GITHUB_OUTPUT
           fi
 
       - name: Set up Docker Buildx
-        if: steps.docker_check.outputs.has_credentials == 'true'
+        if: steps.meta.outputs.has_credentials == 'true'
         uses: docker/setup-buildx-action@v3
 
-      - name: Extract image tags
-        if: steps.docker_check.outputs.has_credentials == 'true'
-        id: meta
-        run: |
-          echo "image_tag=${{ secrets.DOCKERHUB_USERNAME }}/hipstershop-${{ inputs.service_name }}:${{ github.sha }}" >> $GITHUB_OUTPUT
-          echo "image_latest=${{ secrets.DOCKERHUB_USERNAME }}/hipstershop-${{ inputs.service_name }}:latest" >> $GITHUB_OUTPUT
-
       - name: Build Docker image (local, pre-scan)
-        if: steps.docker_check.outputs.has_credentials == 'true'
+        if: steps.meta.outputs.has_credentials == 'true'
         run: |
           docker build \
             -t ${{ steps.meta.outputs.image_tag }} \
             ${{ inputs.service_path }}
 
       - name: Save Docker image to tar
-        if: steps.docker_check.outputs.has_credentials == 'true'
+        if: steps.meta.outputs.has_credentials == 'true'
         run: |
           docker save ${{ steps.meta.outputs.image_tag }} -o /tmp/image.tar
 
       - name: Upload Docker image artifact
-        if: steps.docker_check.outputs.has_credentials == 'true'
+        if: steps.meta.outputs.has_credentials == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: docker-image-${{ inputs.service_name }}
@@ -403,28 +402,32 @@ jobs:
     outputs:
       result: ${{ job.status }}
     steps:
-      - name: Check Docker Hub credentials
+      # Guard: only scan when credentials exist AND image_tag is non-empty.
+      # Without this guard Trivy receives an empty image-ref and falls back
+      # to scanning the current directory ('trivy image .'), which always fails.
+      - name: Check scan prerequisites
         id: docker_check
         run: |
-          if [ "${{ needs.build-image.outputs.has_credentials }}" == "true" ]; then
-            echo "has_credentials=true" >> $GITHUB_OUTPUT
+          if [ "${{ needs.build-image.outputs.has_credentials }}" == "true" ] && \
+             [ -n "${{ needs.build-image.outputs.image_tag }}" ]; then
+            echo "can_scan=true" >> $GITHUB_OUTPUT
           else
-            echo "has_credentials=false" >> $GITHUB_OUTPUT
+            echo "can_scan=false" >> $GITHUB_OUTPUT
           fi
 
       - name: Download Docker image artifact
-        if: steps.docker_check.outputs.has_credentials == 'true'
+        if: steps.docker_check.outputs.can_scan == 'true'
         uses: actions/download-artifact@v4
         with:
           name: docker-image-${{ inputs.service_name }}
           path: /tmp
 
       - name: Load Docker image
-        if: steps.docker_check.outputs.has_credentials == 'true'
+        if: steps.docker_check.outputs.can_scan == 'true'
         run: docker load -i /tmp/image.tar
 
       - name: Trivy — scan for CRITICAL vulnerabilities
-        if: steps.docker_check.outputs.has_credentials == 'true'
+        if: steps.docker_check.outputs.can_scan == 'true'
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ needs.build-image.outputs.image_tag }}
@@ -444,39 +447,40 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Check Docker Hub credentials
+      - name: Check push prerequisites
         id: docker_check
         run: |
-          if [ "${{ needs.build-image.outputs.has_credentials }}" == "true" ]; then
-            echo "has_credentials=true" >> $GITHUB_OUTPUT
+          if [ "${{ needs.build-image.outputs.has_credentials }}" == "true" ] && \
+             [ -n "${{ needs.build-image.outputs.image_tag }}" ]; then
+            echo "can_push=true" >> $GITHUB_OUTPUT
           else
-            echo "has_credentials=false" >> $GITHUB_OUTPUT
+            echo "can_push=false" >> $GITHUB_OUTPUT
           fi
 
       - name: Download Docker image artifact
-        if: steps.docker_check.outputs.has_credentials == 'true'
+        if: steps.docker_check.outputs.can_push == 'true'
         uses: actions/download-artifact@v4
         with:
           name: docker-image-${{ inputs.service_name }}
           path: /tmp
 
       - name: Load Docker image
-        if: steps.docker_check.outputs.has_credentials == 'true'
+        if: steps.docker_check.outputs.can_push == 'true'
         run: docker load -i /tmp/image.tar
 
       - name: Log in to Docker Hub
-        if: steps.docker_check.outputs.has_credentials == 'true'
+        if: steps.docker_check.outputs.can_push == 'true'
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Push Docker image (SHA tag)
-        if: steps.docker_check.outputs.has_credentials == 'true'
+        if: steps.docker_check.outputs.can_push == 'true'
         run: docker push ${{ needs.build-image.outputs.image_tag }}
 
       - name: Tag and Push Docker image (latest)
-        if: steps.docker_check.outputs.has_credentials == 'true'
+        if: steps.docker_check.outputs.can_push == 'true'
         run: |
           docker tag ${{ needs.build-image.outputs.image_tag }} ${{ needs.build-image.outputs.image_latest }}
           docker push ${{ needs.build-image.outputs.image_latest }}
