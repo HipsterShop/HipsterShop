@@ -176,7 +176,8 @@ jobs:
 
 
   # ── Job 2: Snyk Security Scan ─────────────────────────────────────────────
-  # Runs in parallel with Job 3 (sonarqube), both need Job 1 (build)
+  # Runs in parallel with Job 3 (sonarqube) and Job 4 (generate-tag),
+  # all three only need Job 1 (build) to complete first.
   snyk:
     name: snyk
     runs-on: ubuntu-latest
@@ -316,7 +317,7 @@ jobs:
 
 
   # ── Job 3: SonarQube Scan ─────────────────────────────────────────────────
-  # Runs in parallel with Job 2 (snyk), both need Job 1 (build)
+  # Runs in parallel with Job 2 (snyk) and Job 4 (generate-tag).
   sonarqube:
     name: sonarqube
     runs-on: ubuntu-latest
@@ -340,11 +341,101 @@ jobs:
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
 
 
-  # ── Job 4: Build Docker Image ─────────────────────────────────────────────
+  # ── Job 4: Generate Tag ────────────────────────────────────────────────────
+  # Runs in parallel with Job 2 (snyk) and Job 3 (sonarqube) — no dependency
+  # on either of them. Computes the correct image/git tag once and exposes it
+  # as job outputs so every downstream job uses one consistent value.
+  #
+  # Tagging strategy (mirrors your friend's approach):
+  #   main        →  semver   e.g. payment-service-v1.4.2
+  #   develop     →  develop-a1b2c3d4   (short 8-char SHA)
+  #   feature/*   →  feature-a1b2c3d4   (/ replaced with - for Docker compat)
+  generate-tag:
+    name: generate tag
+    runs-on: ubuntu-latest
+    needs: build
+    outputs:
+      tag:          ${{ steps.tag.outputs.tag }}
+      tag_exists:   ${{ steps.tag_check.outputs.exists }}
+      image_exists: ${{ steps.image_check.outputs.exists }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Dry-run only — calculates what the next semver WOULD be without
+      # creating anything. Actual git tag is pushed later in the push job,
+      # after the image is confirmed in Docker Hub.
+      - name: Calculate semantic version (main only)
+        id: semver
+        if: github.ref_name == 'main'
+        uses: mathieudutour/github-tag-action@v6.2
+        with:
+          github_token: ${{ github.token }}
+          tag_prefix: "${{ inputs.service_name }}-v"
+          dry_run: true
+          default_bump: patch
+
+      - name: Generate tag
+        id: tag
+        run: |
+          if [ "${{ github.ref_name }}" = "main" ]; then
+            echo "tag=${{ steps.semver.outputs.new_tag }}" >> $GITHUB_OUTPUT
+          else
+            # Replace / with - so Docker image tags are valid (e.g. feature/ci → feature-ci)
+            BRANCH_SLUG=$(echo "${{ github.ref_name }}" | sed 's|/|-|g')
+            SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-8)
+            echo "tag=${BRANCH_SLUG}-${SHORT_SHA}" >> $GITHUB_OUTPUT
+          fi
+
+      # Safety guard: if the tag already exists in the repo but points to a
+      # DIFFERENT commit, abort immediately. This prevents accidental tag moves
+      # if the pipeline is re-triggered on a new commit with the same semver bump.
+      - name: Validate existing git tag
+        id: tag_check
+        run: |
+          TAG=${{ steps.tag.outputs.tag }}
+          git fetch --tags origin || true
+
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            TAG_COMMIT=$(git rev-list -n 1 "$TAG")
+            CURRENT_COMMIT=$(git rev-parse HEAD)
+
+            if [ "$TAG_COMMIT" != "$CURRENT_COMMIT" ]; then
+              echo "Tag $TAG already exists but points to a different commit — aborting."
+              exit 1
+            fi
+
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      # Skip the Docker build entirely if this exact image tag is already in
+      # Docker Hub — saves time on pipeline re-runs or duplicate triggers.
+      - name: Check if Docker image already exists
+        id: image_check
+        run: |
+          if [ -n "${{ secrets.DOCKERHUB_USERNAME }}" ] && [ -n "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
+            if docker manifest inspect \
+              ${{ secrets.DOCKERHUB_USERNAME }}/hipstershop-${{ inputs.service_name }}:${{ steps.tag.outputs.tag }} \
+              > /dev/null 2>&1; then
+              echo "exists=true" >> $GITHUB_OUTPUT
+            else
+              echo "exists=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+
+  # ── Job 5: Build Docker Image ─────────────────────────────────────────────
   build-image:
     name: build image
     runs-on: ubuntu-latest
-    needs: [snyk, sonarqube]
+    needs: [snyk, sonarqube, generate-tag]
+    # Skip this entire job if the image already exists in Docker Hub
+    if: needs.generate-tag.outputs.image_exists != 'true'
     steps:
       - uses: actions/checkout@v4
 
@@ -365,7 +456,7 @@ jobs:
         if: steps.docker_check.outputs.has_credentials == 'true'
         id: meta
         run: |
-          echo "image_tag=${{ secrets.DOCKERHUB_USERNAME }}/hipstershop-${{ inputs.service_name }}:${{ github.sha }}" >> $GITHUB_OUTPUT
+          echo "image_tag=${{ secrets.DOCKERHUB_USERNAME }}/hipstershop-${{ inputs.service_name }}:${{ needs.generate-tag.outputs.tag }}" >> $GITHUB_OUTPUT
           echo "image_latest=${{ secrets.DOCKERHUB_USERNAME }}/hipstershop-${{ inputs.service_name }}:latest" >> $GITHUB_OUTPUT
 
       - name: Build Docker image (local, pre-scan)
@@ -388,15 +479,12 @@ jobs:
           retention-days: 1
 
 
-  # ── Job 5: Trivy Scan ─────────────────────────────────────────────────────
+  # ── Job 6: Trivy Scan ─────────────────────────────────────────────────────
   trivy:
     name: trivy
     runs-on: ubuntu-latest
-    needs: build-image
+    needs: [build-image, generate-tag]
     steps:
-      # Re-derive credentials and image tag inside this job so that
-      # image-ref uses steps.meta.outputs.image_tag (same-job reference,
-      # never empty) — identical logic to the original build-and-push job.
       - name: Check Docker Hub credentials
         id: docker_check
         run: |
@@ -410,8 +498,7 @@ jobs:
         if: steps.docker_check.outputs.has_credentials == 'true'
         id: meta
         run: |
-          echo "image_tag=${{ secrets.DOCKERHUB_USERNAME }}/hipstershop-${{ inputs.service_name }}:${{ github.sha }}" >> $GITHUB_OUTPUT
-          echo "image_latest=${{ secrets.DOCKERHUB_USERNAME }}/hipstershop-${{ inputs.service_name }}:latest" >> $GITHUB_OUTPUT
+          echo "image_tag=${{ secrets.DOCKERHUB_USERNAME }}/hipstershop-${{ inputs.service_name }}:${{ needs.generate-tag.outputs.tag }}" >> $GITHUB_OUTPUT
 
       - name: Download Docker image artifact
         if: steps.docker_check.outputs.has_credentials == 'true'
@@ -435,13 +522,16 @@ jobs:
           ignore-unfixed: true
 
 
-  # ── Job 6: Login & Push to Docker Hub ─────────────────────────────────────
+  # ── Job 7: Login & Push to Docker Hub ─────────────────────────────────────
   push:
     name: push
     runs-on: ubuntu-latest
-    needs: [build-image, trivy]
+    needs: [build-image, trivy, generate-tag]
     steps:
-      # Re-derive credentials and image tag inside this job (same pattern)
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Check Docker Hub credentials
         id: docker_check
         run: |
@@ -455,7 +545,7 @@ jobs:
         if: steps.docker_check.outputs.has_credentials == 'true'
         id: meta
         run: |
-          echo "image_tag=${{ secrets.DOCKERHUB_USERNAME }}/hipstershop-${{ inputs.service_name }}:${{ github.sha }}" >> $GITHUB_OUTPUT
+          echo "image_tag=${{ secrets.DOCKERHUB_USERNAME }}/hipstershop-${{ inputs.service_name }}:${{ needs.generate-tag.outputs.tag }}" >> $GITHUB_OUTPUT
           echo "image_latest=${{ secrets.DOCKERHUB_USERNAME }}/hipstershop-${{ inputs.service_name }}:latest" >> $GITHUB_OUTPUT
 
       - name: Download Docker image artifact
@@ -476,31 +566,46 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Push Docker image (SHA tag)
+      - name: Push Docker image (versioned tag)
         if: steps.docker_check.outputs.has_credentials == 'true'
         run: docker push ${{ steps.meta.outputs.image_tag }}
 
-      - name: Tag and Push Docker image (latest)
+      - name: Tag and push Docker image (latest)
         if: steps.docker_check.outputs.has_credentials == 'true'
         run: |
           docker tag ${{ steps.meta.outputs.image_tag }} ${{ steps.meta.outputs.image_latest }}
           docker push ${{ steps.meta.outputs.image_latest }}
 
+      # Git tag is created here — AFTER the image is confirmed in Docker Hub —
+      # so you never end up with a git tag pointing at an image that didn't
+      # make it through Trivy or the push step.
+      # Only runs on main, and only if this tag doesn't already exist.
+      - name: Create Git tag (main only)
+        if: >
+          github.ref_name == 'main' &&
+          needs.generate-tag.outputs.tag_exists != 'true'
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git tag ${{ needs.generate-tag.outputs.tag }}
+          git push origin ${{ needs.generate-tag.outputs.tag }}
 
-  # ── Job 7: Email Notification ──────────────────────────────────────────────
-  # Always runs after all jobs; sends email only when any job has failed
+
+  # ── Job 8: Email Notification ──────────────────────────────────────────────
+  # Always evaluates after all jobs. Sends email only when any job has failed.
   notify:
     name: notify
     runs-on: ubuntu-latest
-    needs: [build, snyk, sonarqube, build-image, trivy, push]
+    needs: [build, snyk, sonarqube, generate-tag, build-image, trivy, push]
     if: |
       always() && (
-        needs.build.result       == 'failure' ||
-        needs.snyk.result        == 'failure' ||
-        needs.sonarqube.result   == 'failure' ||
-        needs.build-image.result == 'failure' ||
-        needs.trivy.result       == 'failure' ||
-        needs.push.result        == 'failure'
+        needs.build.result         == 'failure' ||
+        needs.snyk.result          == 'failure' ||
+        needs.sonarqube.result     == 'failure' ||
+        needs.generate-tag.result  == 'failure' ||
+        needs.build-image.result   == 'failure' ||
+        needs.trivy.result         == 'failure' ||
+        needs.push.result          == 'failure'
       )
     steps:
       - name: Check SendGrid credentials
@@ -517,22 +622,25 @@ jobs:
         run: |
           FAILED_JOBS=""
 
-          if [ "${{ needs.build.result }}" == "failure" ]; then
+          if [ "${{ needs.build.result }}"        == "failure" ]; then
             FAILED_JOBS="${FAILED_JOBS}| build | FAILED |\n"
           fi
-          if [ "${{ needs.snyk.result }}" == "failure" ]; then
+          if [ "${{ needs.snyk.result }}"         == "failure" ]; then
             FAILED_JOBS="${FAILED_JOBS}| snyk | FAILED |\n"
           fi
-          if [ "${{ needs.sonarqube.result }}" == "failure" ]; then
+          if [ "${{ needs.sonarqube.result }}"    == "failure" ]; then
             FAILED_JOBS="${FAILED_JOBS}| sonarqube | FAILED |\n"
           fi
-          if [ "${{ needs.build-image.result }}" == "failure" ]; then
+          if [ "${{ needs.generate-tag.result }}" == "failure" ]; then
+            FAILED_JOBS="${FAILED_JOBS}| generate-tag | FAILED |\n"
+          fi
+          if [ "${{ needs.build-image.result }}"  == "failure" ]; then
             FAILED_JOBS="${FAILED_JOBS}| build image | FAILED |\n"
           fi
-          if [ "${{ needs.trivy.result }}" == "failure" ]; then
+          if [ "${{ needs.trivy.result }}"        == "failure" ]; then
             FAILED_JOBS="${FAILED_JOBS}| trivy | FAILED — CRITICAL CVEs detected, push blocked |\n"
           fi
-          if [ "${{ needs.push.result }}" == "failure" ]; then
+          if [ "${{ needs.push.result }}"         == "failure" ]; then
             FAILED_JOBS="${FAILED_JOBS}| push | FAILED |\n"
           fi
 
@@ -555,6 +663,7 @@ jobs:
             |--------|-------|
             | **Service** | `${{ inputs.service_name }}` |
             | **Branch** | `${{ github.ref_name }}` |
+            | **Tag** | `${{ needs.generate-tag.outputs.tag }}` |
             | **Actor** | ${{ github.actor }} |
             | **Commit** | ${{ github.event.head_commit.message }} |
             | **SHA** | `${{ github.sha }}` |
@@ -576,6 +685,7 @@ jobs:
             | build | **${{ needs.build.result }}** |
             | snyk | **${{ needs.snyk.result }}** |
             | sonarqube | **${{ needs.sonarqube.result }}** |
+            | generate-tag | **${{ needs.generate-tag.result }}** |
             | build image | **${{ needs.build-image.result }}** |
             | trivy | **${{ needs.trivy.result }}** |
             | push | **${{ needs.push.result }}** |
