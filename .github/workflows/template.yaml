@@ -373,11 +373,15 @@ jobs:
         id: tag
         run: |
           if [ "${{ github.ref_name }}" = "main" ]; then
-            echo "tag=${{ steps.semver.outputs.new_tag }}" >> $GITHUB_OUTPUT
+            COMPUTED_TAG="${{ steps.semver.outputs.new_tag }}"
+            echo "--- Branch: main  |  semver new_tag: $COMPUTED_TAG"
+            echo "tag=$COMPUTED_TAG" >> $GITHUB_OUTPUT
           else
             BRANCH_SLUG=$(echo "${{ github.ref_name }}" | sed 's|/|-|g')
             SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-8)
-            echo "tag=${BRANCH_SLUG}-${SHORT_SHA}" >> $GITHUB_OUTPUT
+            COMPUTED_TAG="${BRANCH_SLUG}-${SHORT_SHA}"
+            echo "--- Branch: ${{ github.ref_name }}  |  tag: $COMPUTED_TAG"
+            echo "tag=$COMPUTED_TAG" >> $GITHUB_OUTPUT
           fi
 
       - name: Validate existing git tag
@@ -403,15 +407,26 @@ jobs:
       - name: Check if Docker image already exists
         id: image_check
         run: |
+          echo "--- Tag generated: ${{ steps.tag.outputs.tag }}"
+
           if [ -n "${{ secrets.DOCKERHUB_USERNAME }}" ] && [ -n "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
-            if docker manifest inspect \
-              ${{ secrets.DOCKERHUB_USERNAME }}/hipstershop-${{ inputs.service_name }}:${{ steps.tag.outputs.tag }} \
-              > /dev/null 2>&1; then
+            IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/hipstershop-${{ inputs.service_name }}:${{ steps.tag.outputs.tag }}"
+            echo "--- Checking image: $IMAGE"
+
+            # Login first — manifest inspect fails silently on private repos without auth
+            echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+
+            if docker manifest inspect "$IMAGE" > /dev/null 2>&1; then
+              echo "--- Image EXISTS in Docker Hub — skipping build"
               echo "exists=true" >> $GITHUB_OUTPUT
             else
+              echo "--- Image NOT found in Docker Hub — will build and push"
               echo "exists=false" >> $GITHUB_OUTPUT
             fi
+
+            docker logout
           else
+            echo "--- No Docker Hub credentials found — skipping image check"
             echo "exists=false" >> $GITHUB_OUTPUT
           fi
 
