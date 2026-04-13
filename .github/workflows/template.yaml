@@ -56,6 +56,7 @@ on:
 
 jobs:
   # ── Job 1: Build & Test ────────────────────────────────────────────────────
+  # Runs on BOTH pull_request and push (merge) events.
   build:
     name: build
     runs-on: ubuntu-latest
@@ -176,12 +177,12 @@ jobs:
 
 
   # ── Job 2: Snyk Security Scan ─────────────────────────────────────────────
-  # Runs in parallel with Job 3 (sonarqube) and Job 4 (generate-tag),
-  # all three only need Job 1 (build) to complete first.
+  # Runs on pull_request ONLY. Skipped on push (merge).
   snyk:
     name: snyk
     runs-on: ubuntu-latest
     needs: build
+    if: github.event_name == 'pull_request'
     defaults:
       run:
         working-directory: ${{ inputs.service_path }}
@@ -317,11 +318,12 @@ jobs:
 
 
   # ── Job 3: SonarQube Scan ─────────────────────────────────────────────────
-  # Runs in parallel with Job 2 (snyk) and Job 4 (generate-tag).
+  # Runs on pull_request ONLY. Skipped on push (merge).
   sonarqube:
     name: sonarqube
     runs-on: ubuntu-latest
     needs: build
+    if: github.event_name == 'pull_request'
     outputs:
       result: ${{ job.status }}
     steps:
@@ -342,18 +344,12 @@ jobs:
 
 
   # ── Job 4: Generate Tag ────────────────────────────────────────────────────
-  # Runs in parallel with Job 2 (snyk) and Job 3 (sonarqube) — no dependency
-  # on either of them. Computes the correct image/git tag once and exposes it
-  # as job outputs so every downstream job uses one consistent value.
-  #
-  # Tagging strategy (mirrors your friend's approach):
-  #   main        →  semver   e.g. payment-service-v1.4.2
-  #   develop     →  develop-a1b2c3d4   (short 8-char SHA)
-  #   feature/*   →  feature-a1b2c3d4   (/ replaced with - for Docker compat)
+  # Runs on push (merge) ONLY. Skipped on pull_request.
   generate-tag:
     name: generate tag
     runs-on: ubuntu-latest
     needs: build
+    if: github.event_name == 'push'
     outputs:
       tag:          ${{ steps.tag.outputs.tag }}
       tag_exists:   ${{ steps.tag_check.outputs.exists }}
@@ -363,9 +359,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Dry-run only — calculates what the next semver WOULD be without
-      # creating anything. Actual git tag is pushed later in the push job,
-      # after the image is confirmed in Docker Hub.
       - name: Calculate semantic version (main only)
         id: semver
         if: github.ref_name == 'main'
@@ -382,15 +375,11 @@ jobs:
           if [ "${{ github.ref_name }}" = "main" ]; then
             echo "tag=${{ steps.semver.outputs.new_tag }}" >> $GITHUB_OUTPUT
           else
-            # Replace / with - so Docker image tags are valid (e.g. feature/ci → feature-ci)
             BRANCH_SLUG=$(echo "${{ github.ref_name }}" | sed 's|/|-|g')
             SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-8)
             echo "tag=${BRANCH_SLUG}-${SHORT_SHA}" >> $GITHUB_OUTPUT
           fi
 
-      # Safety guard: if the tag already exists in the repo but points to a
-      # DIFFERENT commit, abort immediately. This prevents accidental tag moves
-      # if the pipeline is re-triggered on a new commit with the same semver bump.
       - name: Validate existing git tag
         id: tag_check
         run: |
@@ -411,8 +400,6 @@ jobs:
             echo "exists=false" >> $GITHUB_OUTPUT
           fi
 
-      # Skip the Docker build entirely if this exact image tag is already in
-      # Docker Hub — saves time on pipeline re-runs or duplicate triggers.
       - name: Check if Docker image already exists
         id: image_check
         run: |
@@ -430,11 +417,11 @@ jobs:
 
 
   # ── Job 5: Build Docker Image ─────────────────────────────────────────────
+  # Runs on push (merge) ONLY — depends on generate-tag which is push-only.
   build-image:
     name: build image
     runs-on: ubuntu-latest
-    needs: [snyk, sonarqube, generate-tag]
-    # Skip this entire job if the image already exists in Docker Hub
+    needs: [generate-tag]
     if: needs.generate-tag.outputs.image_exists != 'true'
     steps:
       - uses: actions/checkout@v4
@@ -480,6 +467,7 @@ jobs:
 
 
   # ── Job 6: Trivy Scan ─────────────────────────────────────────────────────
+  # Runs on push (merge) ONLY — depends on build-image which is push-only.
   trivy:
     name: trivy
     runs-on: ubuntu-latest
@@ -523,6 +511,7 @@ jobs:
 
 
   # ── Job 7: Login & Push to Docker Hub ─────────────────────────────────────
+  # Runs on push (merge) ONLY — depends on trivy which is push-only.
   push:
     name: push
     runs-on: ubuntu-latest
@@ -576,10 +565,6 @@ jobs:
           docker tag ${{ steps.meta.outputs.image_tag }} ${{ steps.meta.outputs.image_latest }}
           docker push ${{ steps.meta.outputs.image_latest }}
 
-      # Git tag is created here — AFTER the image is confirmed in Docker Hub —
-      # so you never end up with a git tag pointing at an image that didn't
-      # make it through Trivy or the push step.
-      # Only runs on main, and only if this tag doesn't already exist.
       - name: Create Git tag (main only)
         if: >
           github.ref_name == 'main' &&
@@ -592,7 +577,9 @@ jobs:
 
 
   # ── Job 8: Email Notification ──────────────────────────────────────────────
-  # Always evaluates after all jobs. Sends email only when any job has failed.
+  # Always evaluates after whichever jobs actually ran.
+  # On pull_request: watches build, snyk, sonarqube.
+  # On push (merge): watches build, generate-tag, build-image, trivy, push.
   notify:
     name: notify
     runs-on: ubuntu-latest
