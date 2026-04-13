@@ -53,7 +53,9 @@ on:
       SENDGRID_API_KEY:
         required: false
 
-
+permissions:
+  contents: write
+  
 jobs:
   # ── Job 1: Build & Test ────────────────────────────────────────────────────
   build:
