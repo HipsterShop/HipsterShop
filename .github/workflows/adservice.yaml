@@ -18,6 +18,9 @@ on:
       - '.github/workflows/adservice.yaml'
       - '.github/workflows/template.yaml'
 
+permissions:
+  contents: write
+
 jobs:
   call-template:
     uses: ./.github/workflows/template.yaml

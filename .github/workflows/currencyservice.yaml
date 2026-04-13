@@ -18,6 +18,9 @@ on:
       - '.github/workflows/currencyservice.yaml'
       - '.github/workflows/template.yaml'
 
+permissions:
+  contents: write
+
 jobs:
   call-template:
     uses: ./.github/workflows/template.yaml
