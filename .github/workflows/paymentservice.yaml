@@ -3,14 +3,16 @@ name: paymentservice CI
 on:
   push:
     branches:
-      - feature/semantic-versions
+      - main
+      - develop
     paths:
       - 'src/paymentservice/**'
       - '.github/workflows/paymentservice.yaml'
       - '.github/workflows/template.yaml'
   pull_request:
     branches:
-      - feature/semantic-versions
+      - main
+      - develop
     paths:
       - 'src/paymentservice/**'
       - '.github/workflows/paymentservice.yaml'

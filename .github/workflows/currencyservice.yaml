@@ -3,14 +3,16 @@ name: currencyservice CI
 on:
   push:
     branches:
-      - feature/semantic-versions
+      - main
+      - develop
     paths:
       - 'src/currencyservice/**'
       - '.github/workflows/currencyservice.yaml'
       - '.github/workflows/template.yaml'
   pull_request:
     branches:
-      - feature/semantic-versions
+      - main
+      - develop
     paths:
       - 'src/currencyservice/**'
       - '.github/workflows/currencyservice.yaml'

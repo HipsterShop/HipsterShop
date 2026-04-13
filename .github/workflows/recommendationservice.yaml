@@ -3,14 +3,16 @@ name: recommendationservice CI
 on:
   push:
     branches:
-      - feature/semantic-versions
+      - main
+      - develop
     paths:
       - 'src/recommendationservice/**'
       - '.github/workflows/recommendationservice.yaml'
       - '.github/workflows/template.yaml'
   pull_request:
     branches:
-      - feature/semantic-versions
+      - main
+      - develop
     paths:
       - 'src/recommendationservice/**'
       - '.github/workflows/recommendationservice.yaml'

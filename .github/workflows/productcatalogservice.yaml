@@ -3,14 +3,16 @@ name: productcatalogservice CI
 on:
   push:
     branches:
-      - feature/semantic-versions
+      - main
+      - develop
     paths:
       - 'src/productcatalogservice/**'
       - '.github/workflows/productcatalogservice.yaml'
       - '.github/workflows/template.yaml'
   pull_request:
     branches:
-      - feature/semantic-versions
+      - main
+      - develop
     paths:
       - 'src/productcatalogservice/**'
       - '.github/workflows/productcatalogservice.yaml'

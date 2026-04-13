@@ -3,14 +3,16 @@ name: assistantservice CI
 on:
   push:
     branches:
-      - feature/semantic-versions
+      - main
+      - develop
     paths:
       - 'src/assistantservice/**'
       - '.github/workflows/assistantservice.yaml'
       - '.github/workflows/template.yaml'
   pull_request:
     branches:
-      - feature/semantic-versions
+      - main
+      - develop
     paths:
       - 'src/assistantservice/**'
       - '.github/workflows/assistantservice.yaml'
