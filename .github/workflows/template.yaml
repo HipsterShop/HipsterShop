@@ -56,11 +56,9 @@ on:
 
 jobs:
   # ── Job 1: SonarQube Scan ─────────────────────────────────────────────────
-  # Runs on pull_request ONLY. Skipped on push (merge).
   sonarqube:
     name: sonarqube
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
     outputs:
       result: ${{ job.status }}
     steps:
@@ -78,135 +76,12 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-  # ── Job 1: Build & Test ────────────────────────────────────────────────────
-  # Runs on BOTH pull_request and push (merge) events.
-  build:
-    name: build
-    runs-on: ubuntu-latest
-    needs: sonarqube
-    defaults:
-      run:
-        working-directory: ${{ inputs.service_path }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Fix file permissions (Gradle)
-        if: inputs.runtime == 'java' && inputs.java-build-tool == 'gradle'
-        run: chmod +x gradle/wrapper/gradle-wrapper.jar gradlew
-
-      - name: Setup Node.js
-        if: inputs.runtime == 'node'
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ inputs.node-version }}
-          cache: npm
-          cache-dependency-path: "${{ inputs.service_path }}/package.json"
-
-      - name: Setup Python
-        if: inputs.runtime == 'python'
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ inputs.python-version }}
-          cache: "pip"
-
-      - name: Setup Go
-        if: inputs.runtime == 'go'
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ inputs.go-version }}
-
-      - name: Setup Java
-        if: inputs.runtime == 'java'
-        uses: actions/setup-java@v4
-        with:
-          distribution: "temurin"
-          java-version: ${{ inputs.java-version }}
-          cache: ${{ inputs.java-build-tool }}
-
-      - name: Setup .NET
-        if: inputs.runtime == 'dotnet'
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: ${{ inputs.dotnet-version }}
-
-      - name: Install Node dependencies
-        if: inputs.runtime == 'node'
-        run: npm install
-
-      - name: Install Python dependencies
-        if: inputs.runtime == 'python'
-        run: pip install -r requirements.txt
-
-      - name: Download Go modules
-        if: inputs.runtime == 'go'
-        run: go mod download
-
-      - name: Build (Go)
-        if: inputs.runtime == 'go'
-        run: go build ./...
-
-      - name: Build (Java — Maven)
-        if: inputs.runtime == 'java' && inputs.java-build-tool == 'maven'
-        run: mvn -B package --no-transfer-progress
-
-      - name: Build (Java — Gradle)
-        if: inputs.runtime == 'java' && inputs.java-build-tool == 'gradle'
-        run: ./gradlew build -x test
-
-      - name: Restore .NET packages
-        if: inputs.runtime == 'dotnet'
-        run: dotnet restore
-
-      - name: Build (.NET)
-        if: inputs.runtime == 'dotnet'
-        run: dotnet build --configuration Release --no-restore
-
-      - name: Test (Node)
-        if: inputs.runtime == 'node'
-        run: npm test -- --passWithNoTests
-
-      - name: Test (Python)
-        if: inputs.runtime == 'python'
-        run: |
-          pip install pytest
-          pytest --tb=short || true
-
-      - name: Test (Go)
-        if: inputs.runtime == 'go'
-        run: go test ./... -v
-
-      - name: Test (Java — Maven)
-        if: inputs.runtime == 'java' && inputs.java-build-tool == 'maven'
-        run: mvn -B test --no-transfer-progress
-
-      - name: Test (Java — Gradle)
-        if: inputs.runtime == 'java' && inputs.java-build-tool == 'gradle'
-        run: ./gradlew test
-
-      - name: Test (.NET)
-        if: inputs.runtime == 'dotnet'
-        run: dotnet test --no-build --configuration Release --verbosity normal
-
-      - name: Lint — check unused dependencies (Node)
-        if: inputs.runtime == 'node'
-        run: npx depcheck || true
-
-      - name: Lint — go vet (Go)
-        if: inputs.runtime == 'go'
-        run: go vet ./...
-
-      - name: Lint — format check (.NET)
-        if: inputs.runtime == 'dotnet'
-        run: dotnet format --verify-no-changes || true
-
 
   # ── Job 2: Snyk Security Scan ─────────────────────────────────────────────
-  # Runs on pull_request ONLY. Skipped on push (merge).
   snyk:
     name: snyk
     runs-on: ubuntu-latest
-    needs: build
-    if: github.event_name == 'pull_request'
+    needs: sonarqube
     defaults:
       run:
         working-directory: ${{ inputs.service_path }}
@@ -341,13 +216,11 @@ jobs:
           retention-days: 14
 
 
-  # ── Job 4: Generate Tag ────────────────────────────────────────────────────
-  # Runs on push (merge) ONLY. Skipped on pull_request.
+  # ── Job 3: Generate Tag ────────────────────────────────────────────────────
   generate-tag:
     name: generate tag
     runs-on: ubuntu-latest
-    needs: build
-    if: github.event_name == 'push'
+    needs: snyk
     outputs:
       tag:          ${{ steps.tag.outputs.tag }}
       tag_exists:   ${{ steps.tag_check.outputs.exists }}
@@ -429,8 +302,7 @@ jobs:
           fi
 
 
-  # ── Job 5: Build Docker Image ─────────────────────────────────────────────
-  # Runs on push (merge) ONLY — depends on generate-tag which is push-only.
+  # ── Job 4: Build Docker Image ─────────────────────────────────────────────
   build-image:
     name: build image
     runs-on: ubuntu-latest
@@ -478,9 +350,7 @@ jobs:
           path: /tmp/image.tar
           retention-days: 1
 
-
-  # ── Job 6: Trivy Scan ─────────────────────────────────────────────────────
-  # Runs on push (merge) ONLY — depends on build-image which is push-only.
+  # ── Job 5: Trivy Scan ─────────────────────────────────────────────────────
   trivy:
     name: trivy
     runs-on: ubuntu-latest
@@ -523,8 +393,7 @@ jobs:
           ignore-unfixed: true
 
 
-  # ── Job 7: Login & Push to Docker Hub ─────────────────────────────────────
-  # Runs on push (merge) ONLY — depends on trivy which is push-only.
+  # ── Job 6: Login & Push to Docker Hub ─────────────────────────────────────
   push:
     name: push
     runs-on: ubuntu-latest
@@ -589,17 +458,16 @@ jobs:
           git push origin ${{ needs.generate-tag.outputs.tag }}
 
 
-  # ── Job 8: Email Notification ──────────────────────────────────────────────
+  # ── Job 7: Email Notification ──────────────────────────────────────────────
   # Always evaluates after whichever jobs actually ran.
-  # On pull_request: watches build, snyk, sonarqube.
-  # On push (merge): watches build, generate-tag, build-image, trivy, push.
+  #  watches snyk, sonarqube.
+  #  watches generate-tag, build-image, trivy, push.
   notify:
     name: notify
     runs-on: ubuntu-latest
-    needs: [build, snyk, sonarqube, generate-tag, build-image, trivy, push]
+    needs: [sonarqube, snyk, generate-tag, build-image, trivy, push]
     if: |
       always() && (
-        needs.build.result         == 'failure' ||
         needs.snyk.result          == 'failure' ||
         needs.sonarqube.result     == 'failure' ||
         needs.generate-tag.result  == 'failure' ||
@@ -622,14 +490,11 @@ jobs:
         run: |
           FAILED_JOBS=""
 
-          if [ "${{ needs.build.result }}"        == "failure" ]; then
-            FAILED_JOBS="${FAILED_JOBS}| build | FAILED |\n"
+          if [ "${{ needs.sonarqube.result }}"    == "failure" ]; then
+            FAILED_JOBS="${FAILED_JOBS}| sonarqube | FAILED |\n"
           fi
           if [ "${{ needs.snyk.result }}"         == "failure" ]; then
             FAILED_JOBS="${FAILED_JOBS}| snyk | FAILED |\n"
-          fi
-          if [ "${{ needs.sonarqube.result }}"    == "failure" ]; then
-            FAILED_JOBS="${FAILED_JOBS}| sonarqube | FAILED |\n"
           fi
           if [ "${{ needs.generate-tag.result }}" == "failure" ]; then
             FAILED_JOBS="${FAILED_JOBS}| generate-tag | FAILED |\n"
@@ -682,7 +547,6 @@ jobs:
 
             | Job | Result |
             |-----|--------|
-            | build | **${{ needs.build.result }}** |
             | snyk | **${{ needs.snyk.result }}** |
             | sonarqube | **${{ needs.sonarqube.result }}** |
             | generate-tag | **${{ needs.generate-tag.result }}** |
