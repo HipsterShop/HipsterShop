@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: {{ .Values.global.namespaces.backend }}
+  name: authservice
+  labels:
+    app: authservice
+spec:
+  type: ClusterIP
+  selector:
+    app: authservice
+  ports:
+  - name: http
+    port: {{ .Values.global.ports.authservice }}
+    targetPort: {{ .Values.global.ports.authservice }}

@@ -1,16 +1,17 @@
 apiVersion: v2
 name: hipstershop
 description: |
-  HipsterShop
+  HipsterShop - Multi-namespace microservices e-commerce platform
 type: application
-version: 1.0.0
-appVersion: "1.0.0"
+version: 2.0.0
+appVersion: "2.0.0"
 keywords:
   - microservices
   - ecommerce
   - kubernetes
   - mongodb
   - kgateway
+  - namespace-isolation
 maintainers:
   - name: Team 4
 home: https://github.com/Yampss/HipsterShop

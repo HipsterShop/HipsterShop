@@ -1,4 +1,22 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: hipster
+  name: hipster-frontend
+  labels:
+    name: hipster-frontend
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hipster-backend
+  labels:
+    name: hipster-backend
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hipster-database
+  labels:
+    name: hipster-database

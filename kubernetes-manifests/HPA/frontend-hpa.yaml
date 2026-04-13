@@ -1,7 +1,7 @@
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  namespace: hipster
+  namespace: hipster-frontend
   name: frontend-hpa
 spec:
   scaleTargetRef:

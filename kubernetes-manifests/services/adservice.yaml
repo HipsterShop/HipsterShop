@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  namespace: hipster
+  namespace: hipster-backend
   name: adservice
   labels:
     app: adservice
@@ -19,6 +19,7 @@ spec:
     metadata:
       labels:
         app: adservice
+        tier: backend
     spec:
       terminationGracePeriodSeconds: 5
       containers:
@@ -64,7 +65,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  namespace: hipster
+  namespace: hipster-backend
   name: adservice
   labels:
     app: adservice

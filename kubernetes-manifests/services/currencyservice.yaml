@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  namespace: hipster
+  namespace: hipster-backend
   name: currencyservice
   labels:
     app: currencyservice
@@ -19,6 +19,7 @@ spec:
     metadata:
       labels:
         app: currencyservice
+        tier: backend
     spec:
       terminationGracePeriodSeconds: 5
       containers:
@@ -60,7 +61,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  namespace: hipster
+  namespace: hipster-backend
   name: currencyservice
   labels:
     app: currencyservice

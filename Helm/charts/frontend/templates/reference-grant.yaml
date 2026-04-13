@@ -1,0 +1,13 @@
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: allow-backend-routes-to-frontend
+  namespace: {{ .Values.global.namespaces.frontend }}
+spec:
+  from:
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    namespace: {{ .Values.global.namespaces.backend }}
+  to:
+  - group: ""
+    kind: Service

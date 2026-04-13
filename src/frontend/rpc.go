@@ -100,7 +100,7 @@ func (fe *frontendServer) authLogin(ctx context.Context, email, password string)
 			if apiErr.Status == http.StatusUnauthorized {
 				return nil, fmt.Errorf("Invalid email or password")
 			}
-			return nil, fmt.Errorf(apiErr.Message)
+			return nil, fmt.Errorf("%s", apiErr.Message)
 		}
 		return nil, err
 	}
@@ -115,7 +115,7 @@ func (fe *frontendServer) authSignup(ctx context.Context, name, email, password 
 			if apiErr.Status == http.StatusConflict {
 				return nil, fmt.Errorf("Email already registered")
 			}
-			return nil, fmt.Errorf(apiErr.Message)
+			return nil, fmt.Errorf("%s", apiErr.Message)
 		}
 		return nil, err
 	}

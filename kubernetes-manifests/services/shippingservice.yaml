@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  namespace: hipster
+  namespace: hipster-backend
   name: shippingservice
   labels:
     app: shippingservice
@@ -19,6 +19,7 @@ spec:
     metadata:
       labels:
         app: shippingservice
+        tier: backend
     spec:
       containers:
       - name: server
@@ -54,7 +55,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  namespace: hipster
+  namespace: hipster-backend
   name: shippingservice
   labels:
     app: shippingservice

@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  namespace: hipster
+  namespace: hipster-backend
   name: recommendationservice
   labels:
     app: recommendationservice
@@ -19,6 +19,7 @@ spec:
     metadata:
       labels:
         app: recommendationservice
+        tier: backend
     spec:
       terminationGracePeriodSeconds: 5
       containers:
@@ -71,7 +72,7 @@ spec:
               name: mongodb-config
               key: ANALYTICS_RECOMMENDATIONS_COLLECTION
         - name: MONGO_URI
-          value: "mongodb://$(MONGO_USERNAME):$(MONGO_PASSWORD)@mongodb-0.mongo-headless.hipster.svc.cluster.local:27017,mongodb-1.mongo-headless.hipster.svc.cluster.local:27017,mongodb-2.mongo-headless.hipster.svc.cluster.local:27017/analytics_db?replicaSet=rs0&authSource=analytics_db&authMechanism=SCRAM-SHA-256"
+          value: "mongodb://$(MONGO_USERNAME):$(MONGO_PASSWORD)@mongodb-0.mongo-headless.hipster-database.svc.cluster.local:27017,mongodb-1.mongo-headless.hipster-database.svc.cluster.local:27017,mongodb-2.mongo-headless.hipster-database.svc.cluster.local:27017/analytics_db?replicaSet=rs0&authSource=analytics_db&authMechanism=SCRAM-SHA-256"
         resources:
           requests:
             cpu: 100m
@@ -83,7 +84,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  namespace: hipster
+  namespace: hipster-backend
   name: recommendationservice
   labels:
     app: recommendationservice

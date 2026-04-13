@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: {{ .Values.global.namespaces.frontend }}
+  name: frontend
+  labels:
+    app: frontend
+spec:
+  replicas: {{ .Values.global.replicas.frontend }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: {{ .Values.global.rollingUpdate.maxUnavailable }}
+      maxSurge: {{ .Values.global.rollingUpdate.maxSurge }}
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+        - name: server
+          image: {{ .Values.global.images.frontend }}
+          ports:
+          - containerPort: {{ .Values.global.ports.frontend }}
+          readinessProbe:
+            initialDelaySeconds: 10
+            httpGet:
+              path: "/_healthz"
+              port: {{ .Values.global.ports.frontend }}
+              httpHeaders:
+              - name: "Cookie"
+                value: "shop_session-id=x-readiness-probe"
+          livenessProbe:
+            initialDelaySeconds: 10
+            httpGet:
+              path: "/_healthz"
+              port: {{ .Values.global.ports.frontend }}
+              httpHeaders:
+              - name: "Cookie"
+                value: "shop_session-id=x-liveness-probe"
+          envFrom:
+            - configMapRef:
+                name: hipster-config
+          env:
+            - name: PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: service-ports
+                  key: FRONTEND_PORT
+            - name: GATEWAY_ADDR
+              valueFrom:
+                configMapKeyRef:
+                  name: service-addresses
+                  key: GATEWAY_ADDR
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: JWT_SECRET
+          resources:
+            requests:
+              cpu: {{ .Values.global.resources.standard.requests.cpu }}
+              memory: {{ .Values.global.resources.standard.requests.memory }}
+            limits:
+              cpu: {{ .Values.global.resources.standard.limits.cpu }}
+              memory: {{ .Values.global.resources.standard.limits.memory }}

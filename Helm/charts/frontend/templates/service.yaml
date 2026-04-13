@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: {{ .Values.global.namespaces.frontend }}
+  name: frontend
+  labels:
+    app: frontend
+spec:
+  type: ClusterIP
+  selector:
+    app: frontend
+  ports:
+  - name: http
+    port: {{ .Values.global.ports.frontendSvc }}
+    targetPort: {{ .Values.global.ports.frontend }}

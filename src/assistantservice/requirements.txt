@@ -1,8 +1,16 @@
+# fastapi==0.111.0
+# uvicorn==0.30.1
+# pydantic==2.7.4
+# requests==2.32.3
+# langchain==0.3.7
+# langchain-core==0.3.81
+# langchain-google-genai==1.0.6
+# langgraph==0.1.4
 fastapi==0.111.0
 uvicorn==0.30.1
 pydantic==2.7.4
 requests==2.32.3
-langchain==0.2.6
-langchain-core==0.2.11
-langchain-google-genai==1.0.6
-langgraph==0.1.4
+
+langchain==0.3.20
+langchain-google-genai==2.0.0
+langgraph==0.3.0

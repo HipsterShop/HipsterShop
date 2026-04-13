@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: assistantservice
+  namespace: {{ .Values.global.namespaces.backend }}
+spec:
+  type: ClusterIP
+  selector:
+    app: assistantservice
+  ports:
+  - name: http
+    port: {{ .Values.global.ports.assistantservice }}
+    targetPort: {{ .Values.global.ports.assistantservice }}

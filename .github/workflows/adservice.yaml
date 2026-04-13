@@ -1,0 +1,36 @@
+name: adservice CI
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'src/adservice/**'
+      - '.github/workflows/adservice.yaml'
+      - '.github/workflows/template.yaml'
+  pull_request:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'src/adservice/**'
+      - '.github/workflows/adservice.yaml'
+      - '.github/workflows/template.yaml'
+
+jobs:
+  call-template:
+    uses: ./.github/workflows/template.yaml
+    with:
+      service_name: adservice
+      service_path: src/adservice
+      runtime: java
+      java-version: "21"
+      java-build-tool: "gradle"
+    secrets:
+      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+      SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+      SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}

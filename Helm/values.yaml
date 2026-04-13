@@ -1,183 +1,193 @@
+# ═══════════════════════════════════════════════════════════════════
+#  HipsterShop — Global Values (Single source of truth)
+# ═══════════════════════════════════════════════════════════════════
 
-images:
-  adservice:              cazzzzz/trf-adservice-hipster:latest
-  assistantservice:       cazzzzz/trf-assistantservice-hipster:latest
-  authservice:            cazzzzz/trf-authservice-hipster:latest
-  cartservice:            cazzzzz/trf-cartservice-hipster:v1
-  checkoutservice:        cazzzzz/trf-checkoutservice-hipster:latest
-  currencyservice:        cazzzzz/trf-currencyservice-hipster:latest
-  emailservice:           cazzzzz/trf-emailservice-hipster:latest
-  frontend:               cazzzzz/trf-frontend-hipster:v2
-  paymentservice:         cazzzzz/trf-paymentservice-hipster:latest
-  productcatalogservice:  cazzzzz/trf-productcatalogservice-hipster:v1
-  recommendationservice:  cazzzzz/trf-recommendationservice-hipster:latest
-  shippingservice:        cazzzzz/trf-shippingservice-hipster:latest
-  mongodb:                mongo:7.0
-  loadgenerator:          busybox:1.28
+global:
+  # ── Namespace Isolation ──────────────────────────────────────────
+  namespaces:
+    frontend: hipster-frontend
+    backend: hipster-backend
+    database: hipster-database
 
+  # ── Container Images ────────────────────────────────────────────
+  images:
+    adservice:              cazzzzz/trf-adservice-hipster:latest
+    assistantservice:       cazzzzz/trf-assistantservice-hipster:latest
+    authservice:            cazzzzz/trf-authservice-hipster:latest
+    cartservice:            cazzzzz/trf-cartservice-hipster:v1
+    checkoutservice:        cazzzzz/trf-checkoutservice-hipster:latest
+    currencyservice:        cazzzzz/trf-currencyservice-hipster:latest
+    emailservice:           cazzzzz/trf-emailservice-hipster:latest
+    frontend:               cazzzzz/trf-frontend-hipster:v2
+    paymentservice:         cazzzzz/trf-paymentservice-hipster:latest
+    productcatalogservice:  cazzzzz/trf-productcatalogservice-hipster:v1
+    recommendationservice:  cazzzzz/trf-recommendationservice-hipster:latest
+    shippingservice:        cazzzzz/trf-shippingservice-hipster:latest
+    mongodb:                mongo:7.0
+    loadgenerator:          busybox:1.28
 
-replicas:
-  adservice:             2
-  assistantservice:      2
-  authservice:           2
-  cartservice:           2
-  checkoutservice:       2
-  currencyservice:       2
-  emailservice:          2
-  frontend:              2
-  paymentservice:        2
-  productcatalogservice: 2
-  recommendationservice: 2
-  shippingservice:       2
-  loadgenerator:         3
+  # ── Replicas ────────────────────────────────────────────────────
+  replicas:
+    adservice:             2
+    assistantservice:      2
+    authservice:           2
+    cartservice:           2
+    checkoutservice:       2
+    currencyservice:       2
+    emailservice:          2
+    frontend:              2
+    paymentservice:        2
+    productcatalogservice: 2
+    recommendationservice: 2
+    shippingservice:       2
+    loadgenerator:         3
 
+  # ── Rolling Update Strategy ─────────────────────────────────────
+  rollingUpdate:
+    maxUnavailable: 1
+    maxSurge: 1
 
-rollingUpdate:
-  maxUnavailable: 1
-  maxSurge: 1
+  # ── Service Ports ───────────────────────────────────────────────
+  ports:
+    adservice:             9555
+    authservice:           8081
+    cartservice:           7070
+    checkoutservice:       5050
+    currencyservice:       7000
+    emailservice:          8080
+    frontend:              8080
+    frontendSvc:           80
+    paymentservice:        50051
+    productcatalogservice: 3550
+    recommendationservice: 8080
+    shippingservice:       50051
+    assistantservice:      8080
 
-ports:
-  adservice:             9555
-  authservice:           8081
-  cartservice:           7070
-  checkoutservice:       5050
-  currencyservice:       7000
-  emailservice:          8080
-  frontend:              8080   
-  frontendSvc:           80     
-  paymentservice:        50051
-  productcatalogservice: 3550
-  recommendationservice: 8080
-  shippingservice:       50051
-  assistantservice:      8080
+  # ── Secrets ─────────────────────────────────────────────────────
+  secrets:
+    jwtSecret:    "team4hipstershopsecret"
+    geminiApiKey: "REPLACE_WITH_GEMINI_API_KEY"
 
-
-secrets:
-  jwtSecret:    "team4hipstershopsecret"
-  geminiApiKey: "REPLACE_WITH_GEMINI_API_KEY"
-
-
-mongodb:
-  replicas:         3
-  storageClass:     nfs
-  storageSize:      5Gi
-  replicaSetName:   rs0
-  initDatabase:     shopdb
-
-  rootUsername:     admin
-  rootPassword:     mongopassword
-  users:
-    auth:
-      username: auth_user
-      password: auth_password
-      database: auth_db
-    cart:
-      username: cart_user
-      password: cart_password
-      database: cart_db
-    catalog:
-      username: catalog_user
-      password: catalog_password
-      database: catalog_db
-    order:
-      username: order_user
-      password: order_password
-      database: order_db
-    payment:
-      username: payment_user
-      password: payment_password
-      database: payment_db
-    notification:
-      username: notification_user
-      password: notification_password
-      database: notification_db
-    analytics:
-      username: analytics_user
-      password: analytics_password
-      database: analytics_db
-
-
-appConfig:
-  enableTracing:        "1"
-  collectorServiceAddr: "jaeger:4317"
-  frontendMessage:      "Checkout HipsterShop today!"
-  enableAssistant:      "true"
-
-
-features:
-  currencyServiceRandomError:      "1"
-  paymentServiceDisableProfiler:   "1"
-  productCatalogSeedDatabase:      "true"
-  geminiModel:                     "gemini-2.5-flash"
- 
-mongodbConfig:
-  replicaSet:                      rs0
-  catalogProductsCollection:       products
-  orderOrdersCollection:           orders
-  orderEventsCollection:           order_events
-  paymentChargesCollection:        charges
-  analyticsRecommendationsCollection: recommendations
-  notificationEmailEventsCollection:  email_events
- 
-gateway:
-  name:             hipstershop-gateway
-  gatewayClassName: kgateway
-  port:             80
- 
-hpa:
-  frontend:
-    minReplicas:        2
-    maxReplicas:        5
-    cpuUtilization:     70
-    memoryUtilization:  80
-    scaleDown:
-      stabilizationWindowSeconds: 20
-      percentValue:               50
-      periodSeconds:              15
-    scaleUp:
-      stabilizationWindowSeconds: 5
-      percentValue:               100
-      podsValue:                  2
-      periodSeconds:              15
- 
-resources:
- 
-  standard:
-    requests:
-      cpu:    100m
-      memory: 64Mi
-    limits:
-      cpu:    200m
-      memory: 128Mi
- 
-  recommendation:
-    requests:
-      cpu:    100m
-      memory: 220Mi
-    limits:
-      cpu:    200m
-      memory: 450Mi
- 
-  adservice:
-    requests:
-      cpu:    200m
-      memory: 180Mi
-    limits:
-      cpu:    300m
-      memory: 512Mi
- 
-  cartservice:
-    requests:
-      cpu:    200m
-      memory: 256Mi
-    limits:
-      cpu:    300m
-      memory: 512Mi
- 
+  # ── MongoDB ─────────────────────────────────────────────────────
   mongodb:
-    requests:
-      cpu:    200m
-      memory: 256Mi
-    limits:
-      cpu:    500m
-      memory: 512Mi
+    replicas:         3
+    storageClass:     nfs
+    storageSize:      5Gi
+    replicaSetName:   rs0
+    initDatabase:     shopdb
+    rootUsername:     admin
+    rootPassword:     mongopassword
+    users:
+      auth:
+        username: auth_user
+        password: auth_password
+        database: auth_db
+      cart:
+        username: cart_user
+        password: cart_password
+        database: cart_db
+      catalog:
+        username: catalog_user
+        password: catalog_password
+        database: catalog_db
+      order:
+        username: order_user
+        password: order_password
+        database: order_db
+      payment:
+        username: payment_user
+        password: payment_password
+        database: payment_db
+      notification:
+        username: notification_user
+        password: notification_password
+        database: notification_db
+      analytics:
+        username: analytics_user
+        password: analytics_password
+        database: analytics_db
+
+  # ── App Configuration ───────────────────────────────────────────
+  appConfig:
+    enableTracing:        "1"
+    collectorServiceAddr: "jaeger:4317"
+    frontendMessage:      "Checkout HipsterShop today!"
+    enableAssistant:      "true"
+
+  # ── Feature Flags ───────────────────────────────────────────────
+  features:
+    currencyServiceRandomError:      "1"
+    paymentServiceDisableProfiler:   "1"
+    productCatalogSeedDatabase:      "true"
+    geminiModel:                     "gemini-2.5-flash"
+
+  # ── MongoDB Config ──────────────────────────────────────────────
+  mongodbConfig:
+    replicaSet:                         rs0
+    catalogProductsCollection:          products
+    orderOrdersCollection:              orders
+    orderEventsCollection:              order_events
+    paymentChargesCollection:           charges
+    analyticsRecommendationsCollection: recommendations
+    notificationEmailEventsCollection:  email_events
+
+  # ── Gateway ─────────────────────────────────────────────────────
+  gateway:
+    name:             hipstershop-gateway
+    gatewayClassName: kgateway
+    port:             80
+
+  # ── HPA ─────────────────────────────────────────────────────────
+  hpa:
+    frontend:
+      minReplicas:        2
+      maxReplicas:        5
+      cpuUtilization:     70
+      memoryUtilization:  80
+      scaleDown:
+        stabilizationWindowSeconds: 20
+        percentValue:               50
+        periodSeconds:              15
+      scaleUp:
+        stabilizationWindowSeconds: 5
+        percentValue:               100
+        podsValue:                  2
+        periodSeconds:              15
+
+  # ── Resources ───────────────────────────────────────────────────
+  resources:
+    standard:
+      requests:
+        cpu:    100m
+        memory: 64Mi
+      limits:
+        cpu:    200m
+        memory: 128Mi
+    recommendation:
+      requests:
+        cpu:    100m
+        memory: 220Mi
+      limits:
+        cpu:    200m
+        memory: 450Mi
+    adservice:
+      requests:
+        cpu:    200m
+        memory: 180Mi
+      limits:
+        cpu:    300m
+        memory: 512Mi
+    cartservice:
+      requests:
+        cpu:    200m
+        memory: 256Mi
+      limits:
+        cpu:    300m
+        memory: 512Mi
+    mongodb:
+      requests:
+        cpu:    200m
+        memory: 256Mi
+      limits:
+        cpu:    500m
+        memory: 512Mi

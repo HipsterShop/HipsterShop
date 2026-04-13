@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: {{ .Values.global.namespaces.backend }}
+  name: cartservice
+  labels:
+    app: cartservice
+spec:
+  type: ClusterIP
+  selector:
+    app: cartservice
+  ports:
+  - name: http
+    port: {{ .Values.global.ports.cartservice }}
+    targetPort: {{ .Values.global.ports.cartservice }}

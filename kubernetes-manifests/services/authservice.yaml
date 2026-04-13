@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  namespace: hipster
+  namespace: hipster-backend
   name: authservice
   labels:
     app: authservice
@@ -19,6 +19,7 @@ spec:
     metadata:
       labels:
         app: authservice
+        tier: backend
     spec:
       terminationGracePeriodSeconds: 5
       initContainers:
@@ -45,9 +46,9 @@ spec:
           set -e
 
           check_primary() {
-            mongosh "mongodb://$MONGO_USERNAME:$MONGO_PASSWORD@mongodb-0.mongo-headless.hipster.svc.cluster.local:27017,mongodb-1.mongo-headless.hipster.svc.cluster.local:27017,mongodb-2.mongo-headless.hipster.svc.cluster.local:27017/admin?replicaSet=rs0&authSource=admin" \
+            mongosh "mongodb://$MONGO_USERNAME:$MONGO_PASSWORD@mongodb-0.mongo-headless.hipster-database.svc.cluster.local:27017,mongodb-1.mongo-headless.hipster-database.svc.cluster.local:27017,mongodb-2.mongo-headless.hipster-database.svc.cluster.local:27017/admin?replicaSet=rs0&authSource=admin" \
               --quiet --eval "db.hello().isWritablePrimary" | grep -q true || \
-            mongosh "mongodb://mongodb-0.mongo-headless.hipster.svc.cluster.local:27017,mongodb-1.mongo-headless.hipster.svc.cluster.local:27017,mongodb-2.mongo-headless.hipster.svc.cluster.local:27017/admin?replicaSet=rs0" \
+            mongosh "mongodb://mongodb-0.mongo-headless.hipster-database.svc.cluster.local:27017,mongodb-1.mongo-headless.hipster-database.svc.cluster.local:27017,mongodb-2.mongo-headless.hipster-database.svc.cluster.local:27017/admin?replicaSet=rs0" \
               --quiet --eval "db.hello().isWritablePrimary" | grep -q true
           }
 
@@ -82,7 +83,7 @@ spec:
               name: mongodb-config
               key: AUTH_DB_NAME
         - name: MONGO_URI
-          value: "mongodb://$(MONGO_USERNAME):$(MONGO_PASSWORD)@mongodb-0.mongo-headless.hipster.svc.cluster.local:27017,mongodb-1.mongo-headless.hipster.svc.cluster.local:27017,mongodb-2.mongo-headless.hipster.svc.cluster.local:27017/auth_db?replicaSet=rs0&authSource=auth_db&authMechanism=SCRAM-SHA-256"
+          value: "mongodb://$(MONGO_USERNAME):$(MONGO_PASSWORD)@mongodb-0.mongo-headless.hipster-database.svc.cluster.local:27017,mongodb-1.mongo-headless.hipster-database.svc.cluster.local:27017,mongodb-2.mongo-headless.hipster-database.svc.cluster.local:27017/auth_db?replicaSet=rs0&authSource=auth_db&authMechanism=SCRAM-SHA-256"
         - name: JWT_SECRET
           valueFrom:
             secretKeyRef:
@@ -115,7 +116,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  namespace: hipster
+  namespace: hipster-backend
   name: authservice
   labels:
     app: authservice

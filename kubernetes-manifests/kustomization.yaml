@@ -1,10 +1,9 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-namespace: hipster
 resources:
  - base/namespace.yaml
- - base/secrets.yaml
  - base/configmaps.yaml
+ - base/secrets.yaml
  - database/secrets.yaml
 
  - database/mongodb.yaml
@@ -22,6 +21,7 @@ resources:
  - services/shippingservice.yaml
  - gateway/hipstershop-gateway.yaml
  - gateway/kgateway.yaml
+ - gateway/reference-grant.yaml
  - gateway/route-ad-route.yaml
  - gateway/route-auth-route.yaml
  - gateway/route-cart-route.yaml
@@ -34,4 +34,7 @@ resources:
  - gateway/route-recommendation-route.yaml
  - gateway/route-shipping-route.yaml
  - gateway/route-assistant-route.yaml
+ - network/frontend-network-policy.yaml
+ - network/backend-network-policy.yaml
+ - network/database-network-policy.yaml
  - HPA/frontend-hpa.yaml

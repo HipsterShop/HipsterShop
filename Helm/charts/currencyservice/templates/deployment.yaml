@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: {{ .Values.global.namespaces.backend }}
+  name: currencyservice
+  labels:
+    app: currencyservice
+spec:
+  replicas: {{ .Values.global.replicas.currencyservice }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: {{ .Values.global.rollingUpdate.maxUnavailable }}
+      maxSurge: {{ .Values.global.rollingUpdate.maxSurge }}
+  selector:
+    matchLabels:
+      app: currencyservice
+  template:
+    metadata:
+      labels:
+        app: currencyservice
+        tier: backend
+    spec:
+      terminationGracePeriodSeconds: 5
+      containers:
+      - name: server
+        image: {{ .Values.global.images.currencyservice }}
+        ports:
+        - name: http
+          containerPort: {{ .Values.global.ports.currencyservice }}
+        envFrom:
+        - configMapRef:
+            name: hipster-config
+        env:
+        - name: PORT
+          valueFrom:
+            configMapKeyRef:
+              name: service-ports
+              key: CURRENCYSERVICE_PORT
+        - name: DISABLE_PROFILER
+          valueFrom:
+            configMapKeyRef:
+              name: app-features
+              key: CURRENCY_SERVICE_RANDOM_ERROR
+        readinessProbe:
+          httpGet:
+            path: "/_healthz"
+            port: {{ .Values.global.ports.currencyservice }}
+        livenessProbe:
+          httpGet:
+            path: "/_healthz"
+            port: {{ .Values.global.ports.currencyservice }}
+        resources:
+          requests:
+            cpu: {{ .Values.global.resources.standard.requests.cpu }}
+            memory: {{ .Values.global.resources.standard.requests.memory }}
+          limits:
+            cpu: {{ .Values.global.resources.standard.limits.cpu }}
+            memory: {{ .Values.global.resources.standard.limits.memory }}

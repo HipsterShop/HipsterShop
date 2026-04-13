@@ -1,0 +1,112 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: {{ .Values.global.namespaces.backend }}
+  name: authservice
+  labels:
+    app: authservice
+spec:
+  replicas: {{ .Values.global.replicas.authservice }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: {{ .Values.global.rollingUpdate.maxUnavailable }}
+      maxSurge: {{ .Values.global.rollingUpdate.maxSurge }}
+  selector:
+    matchLabels:
+      app: authservice
+  template:
+    metadata:
+      labels:
+        app: authservice
+        tier: backend
+    spec:
+      terminationGracePeriodSeconds: 5
+      initContainers:
+      - name: wait-for-mongodb-primary
+        image: {{ .Values.global.images.mongodb }}
+        envFrom:
+        - configMapRef:
+            name: hipster-config
+        env:
+        - name: MONGO_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-root
+              key: MONGO_ROOT_USERNAME
+        - name: MONGO_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-root
+              key: MONGO_ROOT_PASSWORD
+        command:
+        - bash
+        - -c
+        - |
+          set -e
+          check_primary() {
+            mongosh "mongodb://$MONGO_USERNAME:$MONGO_PASSWORD@mongodb-0.mongo-headless.{{ .Values.global.namespaces.database }}.svc.cluster.local:27017,mongodb-1.mongo-headless.{{ .Values.global.namespaces.database }}.svc.cluster.local:27017,mongodb-2.mongo-headless.{{ .Values.global.namespaces.database }}.svc.cluster.local:27017/admin?replicaSet=rs0&authSource=admin" \
+              --quiet --eval "db.hello().isWritablePrimary" | grep -q true || \
+            mongosh "mongodb://mongodb-0.mongo-headless.{{ .Values.global.namespaces.database }}.svc.cluster.local:27017,mongodb-1.mongo-headless.{{ .Values.global.namespaces.database }}.svc.cluster.local:27017,mongodb-2.mongo-headless.{{ .Values.global.namespaces.database }}.svc.cluster.local:27017/admin?replicaSet=rs0" \
+              --quiet --eval "db.hello().isWritablePrimary" | grep -q true
+          }
+          echo "Waiting for MongoDB replica set primary..."
+          until check_primary; do
+            echo "No writable primary yet. Retrying in 3s..."
+            sleep 3
+          done
+          echo "MongoDB primary is ready."
+      containers:
+      - name: server
+        image: {{ .Values.global.images.authservice }}
+        ports:
+        - containerPort: {{ .Values.global.ports.authservice }}
+        envFrom:
+        - configMapRef:
+            name: hipster-config
+        env:
+        - name: MONGO_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-users
+              key: AUTH_MONGO_USERNAME
+        - name: MONGO_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-users
+              key: AUTH_MONGO_PASSWORD
+        - name: MONGO_DATABASE
+          valueFrom:
+            configMapKeyRef:
+              name: mongodb-config
+              key: AUTH_DB_NAME
+        - name: MONGO_URI
+          value: "mongodb://$(MONGO_USERNAME):$(MONGO_PASSWORD)@mongodb-0.mongo-headless.{{ .Values.global.namespaces.database }}.svc.cluster.local:27017,mongodb-1.mongo-headless.{{ .Values.global.namespaces.database }}.svc.cluster.local:27017,mongodb-2.mongo-headless.{{ .Values.global.namespaces.database }}.svc.cluster.local:27017/{{ .Values.global.mongodb.users.auth.database }}?replicaSet=rs0&authSource={{ .Values.global.mongodb.users.auth.database }}&authMechanism=SCRAM-SHA-256"
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: JWT_SECRET
+        - name: PORT
+          valueFrom:
+            configMapKeyRef:
+              name: service-ports
+              key: AUTHSERVICE_PORT
+        readinessProbe:
+          initialDelaySeconds: 10
+          httpGet:
+            path: "/_healthz"
+            port: {{ .Values.global.ports.authservice }}
+        livenessProbe:
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          httpGet:
+            path: "/_healthz"
+            port: {{ .Values.global.ports.authservice }}
+        resources:
+          requests:
+            cpu: {{ .Values.global.resources.standard.requests.cpu }}
+            memory: {{ .Values.global.resources.standard.requests.memory }}
+          limits:
+            cpu: {{ .Values.global.resources.standard.limits.cpu }}
+            memory: {{ .Values.global.resources.standard.limits.memory }}

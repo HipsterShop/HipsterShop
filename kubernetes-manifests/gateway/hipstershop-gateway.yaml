@@ -1,7 +1,7 @@
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
-  namespace: hipster
+  namespace: hipster-backend
   name: hipstershop-gateway
   labels:
     app: hipstershop
@@ -13,4 +13,4 @@ spec:
       port: 80
       allowedRoutes:
         namespaces:
-          from: Same
+          from: All   # Allow HTTPRoutes from any namespace (hipster-backend, hipster-frontend, etc.)

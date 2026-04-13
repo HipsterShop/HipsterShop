@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: {{ .Values.global.namespaces.backend }}
+  name: emailservice
+  labels:
+    app: emailservice
+spec:
+  replicas: {{ .Values.global.replicas.emailservice }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: {{ .Values.global.rollingUpdate.maxUnavailable }}
+      maxSurge: {{ .Values.global.rollingUpdate.maxSurge }}
+  selector:
+    matchLabels:
+      app: emailservice
+  template:
+    metadata:
+      labels:
+        app: emailservice
+        tier: backend
+    spec:
+      terminationGracePeriodSeconds: 5
+      containers:
+      - name: server
+        image: {{ .Values.global.images.emailservice }}
+        ports:
+        - containerPort: {{ .Values.global.ports.emailservice }}
+        envFrom:
+        - configMapRef:
+            name: hipster-config
+        env:
+        - name: PORT
+          valueFrom:
+            configMapKeyRef:
+              name: service-ports
+              key: EMAILSERVICE_PORT
+        - name: MONGO_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-users
+              key: NOTIFICATION_MONGO_USERNAME
+        - name: MONGO_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-users
+              key: NOTIFICATION_MONGO_PASSWORD
+        - name: MONGO_DATABASE
+          valueFrom:
+            configMapKeyRef:
+              name: mongodb-config
+              key: NOTIFICATION_DB_NAME
+        - name: MONGO_EMAIL_EVENTS_COLLECTION
+          valueFrom:
+            configMapKeyRef:
+              name: mongodb-config
+              key: NOTIFICATION_EMAIL_EVENTS_COLLECTION
+        - name: MONGO_URI
+          value: "mongodb://$(MONGO_USERNAME):$(MONGO_PASSWORD)@mongodb-0.mongo-headless.{{ .Values.global.namespaces.database }}.svc.cluster.local:27017,mongodb-1.mongo-headless.{{ .Values.global.namespaces.database }}.svc.cluster.local:27017,mongodb-2.mongo-headless.{{ .Values.global.namespaces.database }}.svc.cluster.local:27017/{{ .Values.global.mongodb.users.notification.database }}?replicaSet=rs0&authSource={{ .Values.global.mongodb.users.notification.database }}&authMechanism=SCRAM-SHA-256"
+        readinessProbe:
+          periodSeconds: 5
+          httpGet:
+            path: "/_healthz"
+            port: {{ .Values.global.ports.emailservice }}
+        livenessProbe:
+          periodSeconds: 5
+          httpGet:
+            path: "/_healthz"
+            port: {{ .Values.global.ports.emailservice }}
+        resources:
+          requests:
+            cpu: {{ .Values.global.resources.standard.requests.cpu }}
+            memory: {{ .Values.global.resources.standard.requests.memory }}
+          limits:
+            cpu: {{ .Values.global.resources.standard.limits.cpu }}
+            memory: {{ .Values.global.resources.standard.limits.memory }}

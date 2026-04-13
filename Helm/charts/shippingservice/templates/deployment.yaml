@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: {{ .Values.global.namespaces.backend }}
+  name: shippingservice
+  labels:
+    app: shippingservice
+spec:
+  replicas: {{ .Values.global.replicas.shippingservice }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: {{ .Values.global.rollingUpdate.maxUnavailable }}
+      maxSurge: {{ .Values.global.rollingUpdate.maxSurge }}
+  selector:
+    matchLabels:
+      app: shippingservice
+  template:
+    metadata:
+      labels:
+        app: shippingservice
+        tier: backend
+    spec:
+      containers:
+      - name: server
+        image: {{ .Values.global.images.shippingservice }}
+        ports:
+        - containerPort: {{ .Values.global.ports.shippingservice }}
+        envFrom:
+        - configMapRef:
+            name: hipster-config
+        env:
+        - name: PORT
+          valueFrom:
+            configMapKeyRef:
+              name: service-ports
+              key: SHIPPINGSERVICE_PORT
+        readinessProbe:
+          periodSeconds: 5
+          httpGet:
+            path: "/_healthz"
+            port: {{ .Values.global.ports.shippingservice }}
+        livenessProbe:
+          httpGet:
+            path: "/_healthz"
+            port: {{ .Values.global.ports.shippingservice }}
+        resources:
+          requests:
+            cpu: {{ .Values.global.resources.standard.requests.cpu }}
+            memory: {{ .Values.global.resources.standard.requests.memory }}
+          limits:
+            cpu: {{ .Values.global.resources.standard.limits.cpu }}
+            memory: {{ .Values.global.resources.standard.limits.memory }}
