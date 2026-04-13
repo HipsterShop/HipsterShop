@@ -55,11 +55,35 @@ on:
 
 
 jobs:
+  # ── Job 1: SonarQube Scan ─────────────────────────────────────────────────
+  # Runs on pull_request ONLY. Skipped on push (merge).
+  sonarqube:
+    name: sonarqube
+    runs-on: ubuntu-latest
+    # if: github.event_name == 'pull_request'
+    outputs:
+      result: ${{ job.status }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: SonarQube scan
+        uses: SonarSource/sonarqube-scan-action@v6
+        with:
+          projectBaseDir: ${{ inputs.service_path }}
+          args: >
+            -Dsonar.projectKey=${{ inputs.service_name }}
+            -Dsonar.projectName=${{ inputs.service_name }}
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
   # ── Job 1: Build & Test ────────────────────────────────────────────────────
   # Runs on BOTH pull_request and push (merge) events.
   build:
     name: build
     runs-on: ubuntu-latest
+    needs: sonarqube
     defaults:
       run:
         working-directory: ${{ inputs.service_path }}
@@ -315,32 +339,6 @@ jobs:
           name: snyk-report-${{ inputs.service_name }}
           path: ${{ inputs.service_path }}/snyk-report.html
           retention-days: 14
-
-
-  # ── Job 3: SonarQube Scan ─────────────────────────────────────────────────
-  # Runs on pull_request ONLY. Skipped on push (merge).
-  sonarqube:
-    name: sonarqube
-    runs-on: ubuntu-latest
-    needs: build
-    if: github.event_name == 'pull_request'
-    outputs:
-      result: ${{ job.status }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: SonarQube scan
-        uses: SonarSource/sonarqube-scan-action@v6
-        with:
-          projectBaseDir: ${{ inputs.service_path }}
-          args: >
-            -Dsonar.projectKey=${{ inputs.service_name }}
-            -Dsonar.projectName=${{ inputs.service_name }}
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
 
 
   # ── Job 4: Generate Tag ────────────────────────────────────────────────────
