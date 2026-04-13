@@ -18,6 +18,10 @@ on:
       - '.github/workflows/frontend.yaml'
       - '.github/workflows/template.yaml'
 
+permissions:
+  contents: write
+
+
 jobs:
   call-template:
     uses: ./.github/workflows/template.yaml
