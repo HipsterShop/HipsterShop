@@ -10,3 +10,4 @@ COPY --from=builder /go/bin/shippingservice /src/shippingservice
 ENV APP_PORT=50051
 EXPOSE 50051
 ENTRYPOINT ["/src/shippingservice"]
+#
