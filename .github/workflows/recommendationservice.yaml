@@ -25,6 +25,7 @@ jobs:
   call-template:
     uses: ./.github/workflows/template.yaml
     with:
+      github_event_name: ${{ github.event_name }}
       service_name: recommendationservice
       service_path: src/recommendationservice
       runtime: python

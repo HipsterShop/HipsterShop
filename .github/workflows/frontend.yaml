@@ -26,6 +26,7 @@ jobs:
   call-template:
     uses: ./.github/workflows/template.yaml
     with:
+      github_event_name: ${{ github.event_name }}
       service_name: frontend
       service_path: src/frontend
       runtime: go
