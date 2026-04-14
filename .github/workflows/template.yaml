@@ -18,27 +18,21 @@ on:
         required: true
         type: string
       node-version:
-        required: false
         type: string
         default: "20"
       python-version:
-        required: false
         type: string
         default: "3.11"
       go-version:
-        required: false
         type: string
         default: "1.22"
       java-version:
-        required: false
         type: string
         default: "21"
       dotnet-version:
-        required: false
         type: string
         default: "8.0"
       java-build-tool:
-        required: false
         type: string
         default: "maven"
 
@@ -48,17 +42,12 @@ on:
       SONAR_TOKEN:
         required: true
       DOCKERHUB_USERNAME:
-        required: false
       DOCKERHUB_TOKEN:
-        required: false
       SONAR_HOST_URL:
-        required: false
       SENDGRID_API_KEY:
-        required: false
 
 
 jobs:
-  # ── Job 1: SonarQube Scan — PR only ───────────────────────────────────────
   sonarqube:
     name: sonarqube
     runs-on: ubuntu-latest
@@ -81,7 +70,6 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
 
-  # ── Job 2: Snyk Security Scan — PR only ───────────────────────────────────
   snyk:
     name: snyk
     runs-on: ubuntu-latest
@@ -221,7 +209,6 @@ jobs:
           retention-days: 14
 
 
-  # ── Job 3: Generate Tag — push/merge only ─────────────────────────────────
   generate-tag:
     name: generate tag
     runs-on: ubuntu-latest
@@ -250,13 +237,13 @@ jobs:
         run: |
           if [ "${{ github.ref_name }}" = "main" ]; then
             COMPUTED_TAG="${{ steps.semver.outputs.new_tag }}"
-            echo "--- Branch: main  |  semver new_tag: $COMPUTED_TAG"
+            echo "Branch: main  |  semver new_tag: $COMPUTED_TAG"
             echo "tag=$COMPUTED_TAG" >> $GITHUB_OUTPUT
           else
             BRANCH_SLUG=$(echo "${{ github.ref_name }}" | sed 's|/|-|g')
             SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-8)
             COMPUTED_TAG="${BRANCH_SLUG}-${SHORT_SHA}"
-            echo "--- Branch: ${{ github.ref_name }}  |  tag: $COMPUTED_TAG"
+            echo "Branch: ${{ github.ref_name }}  |  tag: $COMPUTED_TAG"
             echo "tag=$COMPUTED_TAG" >> $GITHUB_OUTPUT
           fi
 
@@ -283,30 +270,30 @@ jobs:
       - name: Check if Docker image already exists
         id: image_check
         run: |
-          echo "--- Tag generated: ${{ steps.tag.outputs.tag }}"
+          echo " Tag generated: ${{ steps.tag.outputs.tag }}"
 
           if [ -n "${{ secrets.DOCKERHUB_USERNAME }}" ] && [ -n "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
             IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/hipstershop-${{ inputs.service_name }}:${{ steps.tag.outputs.tag }}"
-            echo "--- Checking image: $IMAGE"
+            echo "Checking image: $IMAGE"
 
             echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
 
             if docker manifest inspect "$IMAGE" > /dev/null 2>&1; then
-              echo "--- Image EXISTS in Docker Hub — skipping build"
+              echo "Image EXISTS in Docker Hub — skipping build"
               echo "exists=true" >> $GITHUB_OUTPUT
             else
-              echo "--- Image NOT found in Docker Hub — will build and push"
+              echo "Image NOT found in Docker Hub — will build and push"
               echo "exists=false" >> $GITHUB_OUTPUT
             fi
 
             docker logout
           else
-            echo "--- No Docker Hub credentials found — skipping image check"
+            echo "No Docker Hub credentials found — skipping image check"
             echo "exists=false" >> $GITHUB_OUTPUT
           fi
 
 
-  # ── Job 4: Build Docker Image — push/merge only ───────────────────────────
+
   build-image:
     name: build image
     runs-on: ubuntu-latest
@@ -317,39 +304,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Check Docker Hub credentials
-        id: docker_check
-        run: |
-          if [ -n "${{ secrets.DOCKERHUB_USERNAME }}" ] && [ -n "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
-            echo "has_credentials=true" >> $GITHUB_OUTPUT
-          else
-            echo "has_credentials=false" >> $GITHUB_OUTPUT
-          fi
-
       - name: Set up Docker Buildx
-        if: steps.docker_check.outputs.has_credentials == 'true'
         uses: docker/setup-buildx-action@v3
 
       - name: Extract image tags
-        if: steps.docker_check.outputs.has_credentials == 'true'
         id: meta
         run: |
           echo "image_tag=${{ secrets.DOCKERHUB_USERNAME }}/hipstershop-${{ inputs.service_name }}:${{ needs.generate-tag.outputs.tag }}" >> $GITHUB_OUTPUT
           echo "image_latest=${{ secrets.DOCKERHUB_USERNAME }}/hipstershop-${{ inputs.service_name }}:latest" >> $GITHUB_OUTPUT
 
-      - name: Build Docker image (local, pre-scan)
-        if: steps.docker_check.outputs.has_credentials == 'true'
+      - name: Build Docker image 
         run: |
-          docker build \
-            -t ${{ steps.meta.outputs.image_tag }} \
-            ${{ inputs.service_path }}
+          docker build -t ${{ steps.meta.outputs.image_tag }} ${{ inputs.service_path }}
 
       - name: Save Docker image to tar
-        if: steps.docker_check.outputs.has_credentials == 'true'
         run: docker save ${{ steps.meta.outputs.image_tag }} -o /tmp/image.tar
 
       - name: Upload Docker image artifact
-        if: steps.docker_check.outputs.has_credentials == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: docker-image-${{ inputs.service_name }}
@@ -357,41 +328,28 @@ jobs:
           retention-days: 1
 
 
-  # ── Job 5: Trivy Scan — push/merge only ───────────────────────────────────
   trivy:
     name: trivy
     runs-on: ubuntu-latest
     needs: [build-image, generate-tag]
     if: inputs.github_event_name == 'push'
     steps:
-      - name: Check Docker Hub credentials
-        id: docker_check
-        run: |
-          if [ -n "${{ secrets.DOCKERHUB_USERNAME }}" ] && [ -n "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
-            echo "has_credentials=true" >> $GITHUB_OUTPUT
-          else
-            echo "has_credentials=false" >> $GITHUB_OUTPUT
-          fi
 
       - name: Extract image tags
-        if: steps.docker_check.outputs.has_credentials == 'true'
         id: meta
         run: |
           echo "image_tag=${{ secrets.DOCKERHUB_USERNAME }}/hipstershop-${{ inputs.service_name }}:${{ needs.generate-tag.outputs.tag }}" >> $GITHUB_OUTPUT
 
       - name: Download Docker image artifact
-        if: steps.docker_check.outputs.has_credentials == 'true'
         uses: actions/download-artifact@v4
         with:
           name: docker-image-${{ inputs.service_name }}
           path: /tmp
 
       - name: Load Docker image
-        if: steps.docker_check.outputs.has_credentials == 'true'
         run: docker load -i /tmp/image.tar
 
-      - name: Trivy — scan for CRITICAL vulnerabilities
-        if: steps.docker_check.outputs.has_credentials == 'true'
+      - name: Trivy
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ steps.meta.outputs.image_tag }}
@@ -401,7 +359,6 @@ jobs:
           ignore-unfixed: true
 
 
-  # ── Job 6: Login & Push to Docker Hub — push/merge only ───────────────────
   push:
     name: push
     runs-on: ubuntu-latest
@@ -412,62 +369,41 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Check Docker Hub credentials
-        id: docker_check
-        run: |
-          if [ -n "${{ secrets.DOCKERHUB_USERNAME }}" ] && [ -n "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
-            echo "has_credentials=true" >> $GITHUB_OUTPUT
-          else
-            echo "has_credentials=false" >> $GITHUB_OUTPUT
-          fi
 
       - name: Extract image tags
-        if: steps.docker_check.outputs.has_credentials == 'true'
         id: meta
         run: |
           echo "image_tag=${{ secrets.DOCKERHUB_USERNAME }}/hipstershop-${{ inputs.service_name }}:${{ needs.generate-tag.outputs.tag }}" >> $GITHUB_OUTPUT
           echo "image_latest=${{ secrets.DOCKERHUB_USERNAME }}/hipstershop-${{ inputs.service_name }}:latest" >> $GITHUB_OUTPUT
 
-      - name: Download Docker image artifact
-        if: steps.docker_check.outputs.has_credentials == 'true'
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           name: docker-image-${{ inputs.service_name }}
           path: /tmp
 
-      - name: Load Docker image
-        if: steps.docker_check.outputs.has_credentials == 'true'
-        run: docker load -i /tmp/image.tar
+      - run: docker load -i /tmp/image.tar
 
-      - name: Log in to Docker Hub
-        if: steps.docker_check.outputs.has_credentials == 'true'
-        uses: docker/login-action@v3
+      - uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Push Docker image (versioned tag)
-        if: steps.docker_check.outputs.has_credentials == 'true'
-        run: docker push ${{ steps.meta.outputs.image_tag }}
+      - run: docker push ${{ steps.meta.outputs.image_tag }}
 
-      - name: Tag and push Docker image (latest)
-        if: steps.docker_check.outputs.has_credentials == 'true'
-        run: |
+      - run: |
           docker tag ${{ steps.meta.outputs.image_tag }} ${{ steps.meta.outputs.image_latest }}
           docker push ${{ steps.meta.outputs.image_latest }}
 
-      - name: Create Git tag (main only)
-        if: >
+      - if: >
           github.ref_name == 'main' &&
           needs.generate-tag.outputs.tag_exists != 'true'
         run: |
           git config user.name "github-actions"
-          git config user.email "actions@github.com"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag ${{ needs.generate-tag.outputs.tag }}
           git push origin ${{ needs.generate-tag.outputs.tag }}
 
 
-  # ── Job 7: Email Notification ──────────────────────────────────────────────
   notify:
     name: notify
     runs-on: ubuntu-latest
@@ -482,16 +418,7 @@ jobs:
         needs.push.result          == 'failure'
       )
     steps:
-      - name: Check SendGrid credentials
-        id: email_check
-        run: |
-          if [ -n "${{ secrets.SENDGRID_API_KEY }}" ]; then
-            echo "has_credentials=true" >> $GITHUB_OUTPUT
-          else
-            echo "has_credentials=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Compose failure summary
+      - name: failure summary
         id: summary
         run: |
           FAILED_JOBS=""
@@ -520,7 +447,6 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Send failure notification
-        if: steps.email_check.outputs.has_credentials == 'true'
         uses: licenseware/send-email-notification@v1
         with:
           api-key: ${{ secrets.SENDGRID_API_KEY }}
@@ -539,15 +465,8 @@ jobs:
             | **Commit** | ${{ github.event.head_commit.message }} |
             | **SHA** | `${{ github.sha }}` |
 
-            ---
-
             ## Failed Jobs
-
-            | Job | Status |
-            |-----|--------|
             ${{ steps.summary.outputs.failed_jobs }}
-
-            ---
 
             ## All Job Results
 
@@ -559,9 +478,5 @@ jobs:
             | build image | **${{ needs.build-image.result }}** |
             | trivy | **${{ needs.trivy.result }}** |
             | push | **${{ needs.push.result }}** |
-
-            ---
-
-            > **Trivy failure** means CRITICAL vulnerabilities were detected in the Docker image — the push to Docker Hub was blocked automatically.
 
             [View Full Logs](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
