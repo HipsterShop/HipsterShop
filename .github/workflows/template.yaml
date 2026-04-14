@@ -302,11 +302,18 @@ jobs:
 
 
 # inputs.github_event_name == 'push' &&
+  # build-image:
+  #   name: build image
+  #   runs-on: ubuntu-latest
+  #   needs: [generate-tag]
+  #   if: |
+  #     needs.generate-tag.outputs.image_exists != 'true'
   build-image:
     name: build image
-    runs-on: ubuntu-latest
     needs: [generate-tag]
     if: |
+      always() &&
+      needs.generate-tag.result == 'success' &&
       needs.generate-tag.outputs.image_exists != 'true'
     steps:
       - uses: actions/checkout@v4
@@ -335,13 +342,18 @@ jobs:
           retention-days: 1
 
 
-  trivy:
-    name: trivy
-    runs-on: ubuntu-latest
-    needs: [build-image, generate-tag]
+  # trivy:
+  #   name: trivy
+  #   runs-on: ubuntu-latest
+  #   needs: [build-image, generate-tag]
     # if: inputs.github_event_name == 'push'
     # if: |
     #   (inputs.github_event_name == 'push' || inputs.github_event_name == 'merge')
+  trivy:
+    needs: [build-image, generate-tag]
+    if: |
+      always() &&
+      needs.build-image.result == 'success'
     steps:
 
       - name: Extract image tags
@@ -368,11 +380,17 @@ jobs:
           ignore-unfixed: true
 
 
+  # push:
+  #   name: push
+  #   runs-on: ubuntu-latest
+  #   needs: [build-image, trivy, generate-tag]
+  #   # if: inputs.github_event_name == 'push'
   push:
-    name: push
-    runs-on: ubuntu-latest
     needs: [build-image, trivy, generate-tag]
-    # if: inputs.github_event_name == 'push'
+    if: |
+      always() &&
+      needs.trivy.result == 'success' &&
+      needs.build-image.result == 'success'
     steps:
       - uses: actions/checkout@v4
         with:
