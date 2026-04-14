@@ -216,6 +216,11 @@ jobs:
     # # if: inputs.github_event_name == 'push'
     # if: |
     #   (inputs.github_event_name == 'pull_request' || inputs.github_event_name == 'merge')
+    if: |
+      always() && (
+        needs.snyk.result == 'success' ||
+        needs.snyk.result == 'skipped'
+      )
     outputs:
       tag:          ${{ steps.tag.outputs.tag }}
       tag_exists:   ${{ steps.tag_check.outputs.exists }}
