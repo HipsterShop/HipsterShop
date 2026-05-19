@@ -1,5 +1,5 @@
 # HipsterShop - Microservices E-Commerce Platform
-
+.
 A cloud-native, Kubernetes-deployed microservices e-commerce platform showcasing modern DevOps practices.
 
 ## Quick Overview
